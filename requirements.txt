@@ -1,3 +1,5 @@
 python-telegram-bot
+python-telegram-bot[job-queue]
 aiohttp
 mysql-connector-python
+psutil
