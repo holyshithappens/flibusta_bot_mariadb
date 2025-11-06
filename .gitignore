@@ -1,4 +1,6 @@
 /.venv/
 /.idea/
 .env
+.env.vps
 /logs/
+/data/

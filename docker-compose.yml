@@ -1,0 +1,43 @@
+# docker-compose.yml
+#version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb
+    container_name: flibusta-mariadb
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=${DB_NAME:-flibusta}
+      - MYSQL_USER=${DB_USER:-flibusta}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-flibusta}
+      - TZ=Europe/Moscow
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./db_init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  flibusta-bot:
+    image: holyshithappens/flbst-bot-mdb
+    container_name: flibusta-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    user: "1000:1000"
+
+volumes:
+  mariadb_data:
