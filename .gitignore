@@ -4,3 +4,4 @@
 .env.vps
 /logs/
 /data/
+*local*
