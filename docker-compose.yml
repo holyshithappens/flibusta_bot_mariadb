@@ -4,7 +4,7 @@
 services:
   mariadb:
     image: mariadb
-    container_name: flibusta-mariadb
+    container_name: flibusta-db
     restart: unless-stopped
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootpassword}
@@ -16,7 +16,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     volumes:
-      - mariadb_data:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql  # Тот же volume
       - ./db_init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]

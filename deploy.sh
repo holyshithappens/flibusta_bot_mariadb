@@ -24,6 +24,7 @@ show_usage() {
     echo "Options:"
     echo "  -u, --update    Quick update (pull and restart containers)"
     echo "  -n, --news      Update only news file"
+    echo "  -d, --db-init   Extract SQL files and reinitialize database"
     echo "  -h, --help      Show this help message"
     echo ""
     echo "Without options: Full deployment (build and deploy)"
@@ -69,6 +70,56 @@ EOF
     echo "✅ Directories and files setup completed"
 }
 
+extract_sql_files_on_vps() {
+    echo ""
+    echo "🗜️  Extracting SQL files on VPS..."
+
+    ssh $VPS_USER@$VPS_IP << EOF
+cd ~/$VPS_PATH
+
+echo "📦 Extracting SQL.gz files in db_init/sql/..."
+for gz_file in db_init/sql/*.sql.gz; do
+    if [ -f "\$gz_file" ]; then
+        filename=\$(basename "\$gz_file" .sql.gz)
+        echo "Extracting \$gz_file -> db_init/\${filename}.sql"
+        gunzip -c "\$gz_file" > "db_init/\${filename}.sql"
+    fi
+done
+
+echo "✅ SQL files extracted on VPS"
+EOF
+}
+
+reinitialize_database() {
+    echo ""
+    echo "🔄 Reinitializing database..."
+
+    ssh $VPS_USER@$VPS_IP << EOF
+cd ~/$VPS_PATH
+
+echo "🗑️  Removing old database volume..."
+#docker-compose down
+docker-compose down -v
+
+echo "🗜️  Extracting SQL files..."
+for gz_file in db_init/sql/*.sql.gz; do
+    if [ -f "\$gz_file" ]; then
+        filename=\$(basename "\$gz_file" .sql.gz)
+        echo "Extracting \$gz_file -> db_init/\${filename}.sql"
+        gunzip -c "\$gz_file" > "db_init/\${filename}.sql"
+    fi
+done
+
+echo "🚀 Starting fresh database..."
+docker-compose up -d --force-recreate
+
+echo "⏳ Waiting for database initialization..."
+sleep 30
+
+echo "✅ Database reinitialization completed"
+EOF
+}
+
 copy_news_file() {
     echo ""
     echo "📰 Copying news file to VPS..."
@@ -85,8 +136,8 @@ setup_permissions() {
 
     ssh $VPS_USER@$VPS_IP << EOF
 cd ~/$VPS_PATH
-chmod +x db_init/init_db.sh
-chmod 755 data logs db_backups
+#chmod +x db_init/init_db.sh
+#chmod 755 data logs db_backups
 EOF
 
     echo "✅ Permissions setup completed"
@@ -178,6 +229,15 @@ case "${1:-}" in
         copy_news_file
         ;;
 
+    -d|--db-init)
+        echo "🗜️  Starting database reinitialization..."
+        prompt_user_input_vps
+        reinitialize_database
+        check_status
+        cleanup
+        echo "✅ Database reinitialization completed!"
+        ;;
+
     -h|--help)
         show_usage
         ;;
@@ -187,6 +247,7 @@ case "${1:-}" in
         prompt_user_input_vps
         prompt_user_input_docker
         setup_directories_and_files
+        extract_sql_files_on_vps
         copy_news_file
         setup_permissions
         build_and_push_image
