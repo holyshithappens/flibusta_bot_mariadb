@@ -32,8 +32,10 @@ services:
     env_file: .env
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
+      - DB_HOST=mariadb
     volumes:
       - ./data:/app/data
+      - ./logs:/app/logs
     depends_on:
       mariadb:
         condition: service_healthy

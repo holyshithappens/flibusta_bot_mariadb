@@ -26,7 +26,7 @@ for gz_file in /docker-entrypoint-initdb.d/sql/*.sql.gz; do
 done
 
 # Конвертация кодировки
-CONVERSION_SCRIPT="/docker-entrypoint-initdb.d/sql/00_convert_charset.sql"
+CONVERSION_SCRIPT="/docker-entrypoint-initdb.d/00_convert_charset.sql"
 [ -f "$CONVERSION_SCRIPT" ] && mysql -h localhost -u root -p${MYSQL_ROOT_PASSWORD} ${MYSQL_DATABASE} < "$CONVERSION_SCRIPT"
 
 echo "Database initialization completed!"

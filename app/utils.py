@@ -1,14 +1,15 @@
 import os
 import re
 import sys
-import xml.etree.ElementTree as ET
-import base64
+# import xml.etree.ElementTree as ET
+# import base64
 from urllib.parse import unquote #, urljoin, quote
 import aiohttp
 #import chardet
 #from bs4 import BeautifulSoup
 import importlib.util
 from typing import List, Dict, Any
+import html
 
 from constants import CRITERIA_PATTERN, CRITERIA_PATTERN_SERIES_QUOTED #, FLIBUSTA_DB_BOOKS_PATH  # FLIBUSTA_BASE_URL
 
@@ -509,6 +510,98 @@ async def get_latest_news(file_path: str, count: int = 3) -> List[Dict[str, Any]
     all_news = await load_bot_news(file_path)
     return all_news[-count:] if all_news else []
 
+
+# ===== ФОРМАТИРОВАНИЕ ВЫВОДА =====
+
+def format_book_info(book_info):
+    """Форматирует информацию о книге для сообщения"""
+    # title, year, series, genre, authors = book_info
+
+    text = f"📚 <b>{book_info['title']}</b>\n\n"
+    text += f"👤 <b>Автор(ы):</b> {book_info['authors'] or 'Не указаны'}\n"
+    year = book_info['year']
+    series = book_info['series']
+    genre = book_info['genre']
+    lang = book_info['lang']
+    pages = book_info['pages']
+    rate = book_info['rate']
+    if year and year != 0:
+        text += f"📅 <b>Год:</b> {year}\n"
+    if series:
+        text += f"📖 <b>Серия:</b> {series}\n"
+    if genre:
+        text += f"📑 <b>Жанр(ы):</b> {genre}\n"
+    if lang:
+        text += f"🗣️ <b>Язык:</b> {lang}\n"
+    if pages:
+        text += f"📃 <b>Страниц:</b> {pages}\n"
+    size = format_size(book_info['size'])
+    text += f"📦 <b>Размер:</b> {size}\n"
+    if rate:
+        text += f"⭐ <b>Рейтинг:</b> {rate:.1f}"
+
+    return text
+
+
+def format_book_details(book_details):
+    """Форматирует детальную информацию о книге"""
+    text = f"📖 <b>Аннотация о книге:</b> {book_details.get('title', 'Неизвестно')}\n\n"
+    if book_details.get('annotation'):
+        # Очищаем HTML теги для телеграма
+        # # clean_annotation = re.sub('<[^<]+?>', '', book_details['annotation'])  # HTML теги
+        # # clean_annotation = re.sub(r'\[[^\]]*?\]', '', clean_annotation)  # Квадратные скобки
+        # # clean_annotation = re.sub('&nbsp;', '', clean_annotation)  # &nbsp;
+        # # # clean_annotation = book_details['annotation']
+        # clean_annotation = html.escape(book_details['annotation'])
+        clean_annotation = clean_html_tags(book_details['annotation'])
+        text += f"{clean_annotation[:2000]}" + ("..." if len(clean_annotation) > 2000 else "")
+
+    return text
+
+
+def format_author_info(author_info):
+    """Форматирует информацию об авторе"""
+    text = f"👤 <b>Об авторе:</b> {author_info['name']}\n\n"
+    if author_info.get('biography'):
+        # # clean_bio = re.sub('<[^<]+?>', '', author_info['biography'])
+        # # clean_bio = re.sub(r'\[[^\]]*?\]', '', clean_bio)  # Квадратные скобки
+        # # clean_bio = re.sub('&nbsp;', '', clean_bio)  # &nbsp;
+        # # # clean_bio = author_info['biography']
+        # clean_bio = html.escape(author_info['biography'])
+        clean_bio = clean_html_tags(author_info['biography'])
+        text += f"{clean_bio[:800]}" + ("..." if len(clean_bio) > 800 else "")
+
+    return text
+
+
+def format_book_reviews(reviews):
+    """Форматирует отзывы о книге"""
+    text = "💬 <b>Отзывы о книге:</b>\n\n"
+
+    for name, time, review_text in reviews[:20]:
+        text += f"👤 <b>{name}</b> ({time})\n"
+        # # clean_review = re.sub('<[^<]+?>', '', review_text)
+        # # clean_review = re.sub(r'\[[^\]]*?\]', '', clean_review)  # Квадратные скобки
+        # # clean_review = re.sub('&nbsp;', '', clean_review)  # &nbsp;
+        # clean_review = html.escape(review_text)
+        clean_review = clean_html_tags(review_text)
+        text += f"{clean_review[:400]}" + ("..." if len(clean_review) > 400 else "") + "\n"
+        # text += "─" * 20 + "\n\n"
+
+    return text
+
+def clean_html_tags(text):
+    """Удаляем html-теги и очищаем от лишнего мусора"""
+    clean_text = text
+    clean_text = re.sub(r'<br\s*/?>', '\n', clean_text)  # <br> → перенос
+    clean_text = re.sub(r'</?p[^>]*>', '\n', clean_text)  # <p> → перенос
+    clean_text = re.sub(r'<[^<]+?>', '', clean_text)
+    clean_text = re.sub(r'\[[^\]]*?\]', '', clean_text)  # Квадратные скобки
+    # Убираем множественные переносы
+    clean_text = re.sub(r'\n\s*\n', '\n\n', clean_text)
+    clean_text = html.escape(clean_text)
+    clean_text = clean_text.strip()
+    return clean_text
 
 # async def get_cover_url(book_id: str):
 #     """Простой поиск обложки через BeautifulSoup"""

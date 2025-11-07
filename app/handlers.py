@@ -15,7 +15,8 @@ from constants import FLIBUSTA_BASE_URL, DEFAULT_BOOK_FORMAT, \
     BOT_NEWS_FILE_PATH
 from health import log_stats
 from utils import format_size, get_platform_recommendations, download_book_with_filename, upload_to_tmpfiles, \
-    is_message_for_bot, extract_clean_query, get_latest_news
+    is_message_for_bot, extract_clean_query, get_latest_news, format_book_reviews, format_author_info, \
+    format_book_details, format_book_info
 from logger import logger
 
 
@@ -282,15 +283,15 @@ async def start_cmd(update: Update, context: CallbackContext):
 📚 <b>Привет! Я помогу тебе искать и скачивать книги непосредственно из библиотеки Флибуста.</b> 
 
 <u>Управление</u>
-<code>/news</code> - новости и обновления бота
-<code>/about</code> - информация о боте и библиотеке 
-<code>/help</code> - помощь в составлении поисковых запросов
-<code>/genres</code> - посмотреть доступные жанры
-<code>/langs</code> - посмотреть доступные языки книг по убыванию их количества
-<code>/set</code> - установка настроек поиска и вывода книг
-<code>/donate</code> - поддержать разработчика
+/news - новости и обновления бота
+/about - информация о боте и библиотеке 
+/help - помощь в составлении поисковых запросов
+/genres - посмотреть доступные жанры
+/langs - посмотреть доступные языки книг по убыванию их количества
+/set - установка настроек поиска и вывода книг
+/donate - поддержать разработчика
     """
-    await update.message.reply_text(welcome_text, parse_mode='HTML')
+    await update.message.reply_text(welcome_text, parse_mode='HTML', disable_web_page_preview=True)
 
     # user = update.message.from_user
     user_params = DB_SETTINGS.get_user_settings(user.id)
@@ -306,8 +307,8 @@ async def genres_cmd(update: Update, context: CallbackContext):
     try:
         results = DB_BOOKS.get_parent_genres_with_counts()
 
-        print(f"DEBUG: genres_cmd results = {results}")
-        print(f"DEBUG: Number of results = {len(results)}")
+        # print(f"DEBUG: genres_cmd results = {results}")
+        # print(f"DEBUG: Number of results = {len(results)}")
 
         keyboard = []
         for genre, count in results:
@@ -602,8 +603,7 @@ async def handle_search_series_books(query, context, action, params):
         query_text = f"{context.user_data['series_search_query']}, серия: '{search_series_name}'"
         #query_text = f"серия: '{search_series_name}'"
 
-        # #debug
-        # print(query_text)
+        # print(f"DEBUG: query_text = {query_text}")
 
         books, found_books_count = DB_BOOKS.search_books(
             query_text, user_params.MaxBooks, user_params.Lang,
@@ -1025,8 +1025,7 @@ async def handle_set_actions(query, context, action, params):
 
     reply_markup = create_settings_keyboard(setting_type, new_value, options)
 
-    # Debug
-    print(f"{setting_type} {new_value}")
+    # print(f"DEBUG: {setting_type} {new_value}")
 
     # Обновляем сообщение
     try:
@@ -1106,7 +1105,7 @@ async def help_cmd(update: Update, context: CallbackContext):
     # 🏙️ <code>город: Красноярск</code> - поиск по городу издания
     # 🏢 <code>издательство: Наука</code> - поиск по издательству
 
-    await update.message.reply_text(help_text, parse_mode='HTML')
+    await update.message.reply_text(help_text, parse_mode='HTML', disable_web_page_preview=True)
     user = update.message.from_user
     # update_user_activity(context, user.id)
     logger.log_user_action(user, "showed help")
@@ -1120,8 +1119,7 @@ async def about_cmd(update: Update, context: CallbackContext):
         #last_update_str = last_update.strftime('%d.%m.%Y') if hasattr(last_update, 'strftime') else "неизвестно"
         last_update_str = last_update
 
-        #debug
-        #print(f"{last_update}, {last_update_str}")
+        #print(f"DEBUG: {last_update}, {last_update_str}")
 
         reader_recommendations = get_platform_recommendations()
 
@@ -1504,7 +1502,7 @@ async def handle_book_info(query, context, action, params):
     """Показывает информацию о книге с дополнительными кнопками"""
     try:
         file_path, file_name, file_ext = params
-        book_id = file_name
+        book_id = int(file_name)
 
         # Получаем информацию о книге из БД
         book_info = await DB_BOOKS.get_book_info(book_id)
@@ -1516,7 +1514,7 @@ async def handle_book_info(query, context, action, params):
         # Формируем сообщение с информацией о книге
         message_text = format_book_info(book_info)
 
-        print(f"DEBUG: book_info = {book_info}")
+        # print(f"DEBUG: book_info = {book_info}")
         # Отправляем сообщение без кнопок сначала
         # Если есть обложка, отправляем фото
         if book_info.get('cover_url'):
@@ -1531,11 +1529,13 @@ async def handle_book_info(query, context, action, params):
                 parse_mode=ParseMode.HTML
             )
 
+        author_ids = await DB_BOOKS.get_authors_id(book_id)
+        # print(f"DEBUG: authors_ids = {author_ids}")
         # Создаем клавиатуру с дополнительными кнопками
         keyboard = [
             [InlineKeyboardButton("📥 Скачать", callback_data=f"send_file:{file_path}:{file_name}:{file_ext}")],
             [InlineKeyboardButton("📖 О книге", callback_data=f"book_details:{book_id}"),
-            InlineKeyboardButton("👤 Об авторе", callback_data=f"author_info:{book_id}")],
+            InlineKeyboardButton("👤 Об авторе", callback_data=f"author_info:{author_ids[0]}")],
             [InlineKeyboardButton("💬 Отзывы", callback_data=f"book_reviews:{book_id}"),
             InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")],
         ]
@@ -1570,9 +1570,10 @@ async def handle_book_details(query, context, action, params):
     try:
         book_id = params[0]
         book_details = await DB_BOOKS.get_book_details(book_id)
+        # print(f"DEBUG: book_details = {book_details}")
 
         if not book_details:
-            await query.answer("❌ Детальная информация о книге не найдена")
+            await query.message.reply_text("❌ Аннотация о книге не найдена")
             return
 
         message_text = format_book_details(book_details)
@@ -1596,11 +1597,13 @@ async def handle_book_details(query, context, action, params):
 async def handle_author_info(query: CallbackQuery, context: CallbackContext, action, params):
     """Показывает информацию об авторе"""
     try:
-        book_id = params[0]
-        author_info = await DB_BOOKS.get_author_info(book_id)
+        author_id = int(params[0])
+        # print(f"DEBUG: params = {params}")
+        author_info = await DB_BOOKS.get_author_info(author_id)
+        # print(f"DEBUG: author_info = {author_info}")
 
         if not author_info:
-            await query.answer("❌ Информация об авторе не найдена")
+            await query.message.reply_text("❌ Информация об авторе не найдена")
             return
 
         message_text = format_author_info(author_info)
@@ -1645,7 +1648,7 @@ async def handle_book_reviews(query, context, action, params):
         reviews = await DB_BOOKS.get_book_reviews(book_id)
 
         if not reviews:
-            await query.answer("📝 Отзывов пока нет")
+            await query.message.reply_text("📝 Отзывов пока нет")
             return
 
         message_text = format_book_reviews(reviews)
@@ -1664,117 +1667,7 @@ async def handle_book_reviews(query, context, action, params):
         await query.answer("❌ Ошибка при загрузке отзывов")
 
 
-def format_book_info(book_info):
-    """Форматирует информацию о книге для сообщения"""
-    # title, year, series, genre, authors = book_info
-
-    text = f"📚 <b>{book_info['title']}</b>\n\n"
-    text += f"👤 <b>Автор(ы):</b> {book_info['authors'] or 'Не указаны'}\n"
-    year = book_info['year']
-    series = book_info['series']
-    genre = book_info['genre']
-    lang = book_info['lang']
-    pages = book_info['pages']
-    rate = book_info['rate']
-    if year and year != 0:
-        text += f"📅 <b>Год:</b> {year}\n"
-    if series:
-        text += f"📖 <b>Серия:</b> {series}\n"
-    if genre:
-        text += f"📑 <b>Жанр(ы):</b> {genre}\n"
-    if lang:
-        text += f"🗣️ <b>Язык:</b> {lang}\n"
-    if pages:
-        text += f"📃 <b>Страниц:</b> {pages}\n"
-    size = format_size(book_info['size'])
-    text += f"📦 <b>Размер:</b> {size}\n"
-    if rate:
-        text += f"⭐ <b>Рейтинг:</b> {rate:.1f}"
-
-
-    return text
-
-
-def format_book_details(book_details):
-    """Форматирует детальную информацию о книге"""
-    text = f"📖 <b>Аннотация о книге:</b> {book_details.get('title', 'Неизвестно')}\n\n"
-    if book_details.get('annotation'):
-        # Очищаем HTML теги для телеграма
-        import re
-        clean_annotation = re.sub('<[^<]+?>', '', book_details['annotation'])  # HTML теги
-        clean_annotation = re.sub(r'\[[^\]]*?\]', '', clean_annotation)  # Квадратные скобки
-        clean_annotation = re.sub('&nbsp;', '', clean_annotation)  # &nbsp;
-        # clean_annotation = book_details['annotation']
-        text += f"{clean_annotation[:2000]}" + ("..." if len(clean_annotation) > 2000 else "")
-
-    return text
-
-
-def format_author_info(author_info):
-    """Форматирует информацию об авторе"""
-    text = f"👤 <b>Об авторе:</b> {author_info['name']}\n\n"
-    if author_info.get('biography'):
-        import re
-        clean_bio = re.sub('<[^<]+?>', '', author_info['biography'])
-        clean_bio = re.sub(r'\[[^\]]*?\]', '', clean_bio)  # Квадратные скобки
-        clean_bio = re.sub('&nbsp;', '', clean_bio)  # &nbsp;
-        # clean_bio = author_info['biography']
-        text += f"{clean_bio[:800]}" + ("..." if len(clean_bio) > 800 else "")
-
-    return text
-
-
-def format_book_reviews(reviews):
-    """Форматирует отзывы о книге"""
-    text = "💬 <b>Отзывы о книге:</b>\n\n"
-
-    for name, time, review_text in reviews[:20]:
-        text += f"👤 <b>{name}</b> ({time})\n"
-        text += f"{review_text[:400]}" + ("..." if len(review_text) > 400 else "") + "\n"
-        # text += "─" * 20 + "\n\n"
-
-    return text
-
-
-# ===== НОВАЯ КОМАНДА ДЛЯ ПОИСКА АВТОРОВ =====
-
-# async def authors_cmd(update: Update, context: CallbackContext):
-#     """Показывает первую букву фамилий авторов для выбора"""
-#     try:
-#         # Получаем список первых букв фамилий авторов из БД
-#         first_letters = DB_BOOKS.get_authors_first_letters()
-#         if not first_letters:
-#             await update.message.reply_text("❌ Не удалось загрузить список авторов")
-#             return
-#
-#         print(f"DEBUG: first_letters = {sorted(first_letters,key=lambda x: x[1])}")
-#
-#         # Создаем клавиатуру с буквами
-#         keyboard = []
-#         row = []
-#         for letter, count in first_letters:
-#             row.append(InlineKeyboardButton(letter, callback_data=f"author_letter:{letter}"))
-#             if len(row) >= 8:  # 8 кнопок в строке
-#                 keyboard.append(row)
-#                 row = []
-#         if row:  # Добавляем оставшиеся кнопки
-#             keyboard.append(row)
-#
-#         reply_markup = InlineKeyboardMarkup(keyboard)
-#
-#         await update.message.reply_text(
-#             "🔤 Выберите первую букву фамилии автора:",
-#             reply_markup=reply_markup
-#         )
-#
-#         user = update.message.from_user
-#         logger.log_user_action(user, "viewed authors letters")
-#
-#     except Exception as e:
-#         print(f"Error in authors_cmd: {e}")
-#         await update.message.reply_text("❌ Ошибка при загрузке списка авторов")
-#
-#     await log_stats(context)
+# ===== ПОИСК ПО АВТОРАМ =====
 
 # Добавляем функцию создания клавиатуры для авторов
 def create_authors_keyboard(page, pages_of_authors):
@@ -1784,7 +1677,7 @@ def create_authors_keyboard(page, pages_of_authors):
         authors_in_page = pages_of_authors[page]
 
         if authors_in_page:
-            for idx, (author_name, search_author, book_count) in enumerate(authors_in_page):
+            for idx, (author_name, search_author, book_count, author_id) in enumerate(authors_in_page):
                 text = f"{author_name} ({book_count})"
                 keyboard.append([InlineKeyboardButton(
                     text,
@@ -1804,7 +1697,6 @@ def create_authors_keyboard(page, pages_of_authors):
                 keyboard.append(navigation_buttons)
 
     return keyboard
-
 
 # Добавляем обработчик поиска по авторам
 async def handle_search_authors(update: Update, context: CallbackContext):
@@ -1884,7 +1776,7 @@ async def handle_search_author_books(query, context, action, params):
             await query.edit_message_text("❌ Ошибка: не удалось найти автора")
             return
 
-        author_name, search_author_name, book_count = pages_of_authors[page_num][author_idx]
+        author_name, search_author_name, book_count, author_id = pages_of_authors[page_num][author_idx]
         context.user_data['current_author_name'] = author_name  # Сохраняем имя автора
 
         user = query.from_user
@@ -1909,6 +1801,7 @@ async def handle_search_author_books(query, context, action, params):
 
             page = 0
             keyboard = create_books_keyboard(page, pages_of_books, SEARCH_TYPE_AUTHORS)
+            keyboard.append([InlineKeyboardButton("👤 Об авторе", callback_data=f"author_info:{author_id}")])
 
             if keyboard:
                 reply_markup = InlineKeyboardMarkup(keyboard)

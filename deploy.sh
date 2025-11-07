@@ -56,7 +56,7 @@ EOF
     scp .env.vps $VPS_USER@$VPS_IP:$VPS_PATH/.env
     scp docker-compose.yml $VPS_USER@$VPS_IP:$VPS_PATH/docker-compose.yml
     scp db_init/init_db.sh $VPS_USER@$VPS_IP:$VPS_PATH/db_init/init_db.sh
-    scp db_init/sql/00_convert_charset.sql $VPS_USER@$VPS_IP:$VPS_PATH/db_init/sql/00_convert_charset.sql
+    scp db_init/00_convert_charset.sql $VPS_USER@$VPS_IP:$VPS_PATH/db_init/00_convert_charset.sql
 
     # Копируем SQL файлы если они существуют
     if ls db_init/sql/*.sql.gz 1> /dev/null 2>&1; then

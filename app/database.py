@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from collections import namedtuple
+from typing import Dict, List
 
 import mysql.connector
 from contextlib import contextmanager
@@ -41,7 +42,8 @@ SQL_QUERY_BOOKS = """
     --    upper(bm.City) as SearchCity, 
     --    upper(bm.Publisher) as SearchPublisher,
         upper(regexp_replace(concat(' ', b.Title, ' ', coalesce(an.LastName,''), ' ', coalesce(an.FirstName,''), ' ', coalesce(an.MiddleName,''), ' ', coalesce(sn.SeqName,''), ' ', coalesce(gl.GenreDesc,''), ' ', b.Lang, ' '),'[[:punct:]]',' ')) AS FullSearch,
-        b.Pages
+        b.Pages,
+        an.AvtorID as AuthorID
     FROM libbook b
     LEFT JOIN libavtor a ON a.BookID = b.BookID
     LEFT JOIN libavtorname an ON a.AvtorID = an.AvtorID
@@ -619,11 +621,66 @@ class DatabaseBooks():
             conn.close()
 
 
+    def get_library_stats(self):
+        """Возвращает статистику библиотеки"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # Статистика книг
+                cursor.execute("""
+                    SELECT 
+                        MAX(date(time)) as max_update_date,
+                        COUNT(*) as books_cnt,
+                        MAX(bookid) as max_filename
+                    FROM libbook b
+                    where b.Deleted = '0'
+                """)
+                books_stats = cursor.fetchone()
+
+                # Количество авторов
+                cursor.execute("SELECT COUNT(*) FROM libavtorname")
+                authors_cnt = cursor.fetchone()[0]
+
+                # Количество жанров
+                cursor.execute("SELECT COUNT(*) FROM libgenrelist")
+                genres_cnt = cursor.fetchone()[0]
+
+                # Количество серий
+                cursor.execute("SELECT COUNT(*) FROM libseqname")
+                series_cnt = cursor.fetchone()[0]
+
+                # Количество языков
+                cursor.execute("SELECT COUNT(DISTINCT Lang) FROM libbook WHERE Deleted = '0'")
+                langs_cnt = cursor.fetchone()[0]
+
+                return {
+                    'last_update': books_stats[0],
+                    'books_count': books_stats[1],
+                    'max_filename': books_stats[2],
+                    'authors_count': authors_cnt,
+                    'genres_count': genres_cnt,
+                    'series_count': series_cnt,
+                    'languages_count': langs_cnt
+                }
+        except Exception as e:
+            print(f"Error getting library stats: {e}")
+            return {
+                'last_update': None,
+                'books_count': 0,
+                'max_filename': 'N/A',
+                'authors_count': 0,
+                'genres_count': 0,
+                'series_count': 0,
+                'languages_count': 0
+            }
+
+
     def get_parent_genres_with_counts(self):
         """Получает родительские жанры с кешированием"""
         if self._cached_parent_genres is None:
             with self.connect() as conn:
-                cursor = conn.cursor()
+                cursor = conn.cursor(buffered=True)
                 cursor.execute(SQL_QUERY_PARENT_GENRES_COUNT)
                 self._cached_parent_genres = cursor.fetchall()
         return self._cached_parent_genres
@@ -632,7 +689,7 @@ class DatabaseBooks():
     def get_genres_with_counts(self, parent_genre):
         if parent_genre not in self._cached_genres:
             with self.connect() as conn:
-                cursor = conn.cursor()
+                cursor = conn.cursor(buffered=True)
                 cursor.execute(SQL_QUERY_CHILDREN_GENRES_COUNT, (parent_genre,))
                 results = cursor.fetchall()
                 self._cached_genres[parent_genre] = [(genre[0].strip(), genre[1]) for genre in results if genre[0].strip()]
@@ -648,7 +705,7 @@ class DatabaseBooks():
 #        return results
         if self._cached_langs is None:
             with self.connect() as conn:
-                cursor = conn.cursor()
+                cursor = conn.cursor(buffered=True)
                 cursor.execute(SQL_QUERY_LANGS)
                 self._cached_langs = cursor.fetchall()
         return self._cached_langs
@@ -675,7 +732,7 @@ class DatabaseBooks():
         # выполняем запросы поиска книг и подсчёта количества найденных книг
         with self.connect() as conn:
             # conn.create_function("REMOVE_PUNCTUATION", 1, remove_punctuation)
-            cursor = conn.cursor()
+            cursor = conn.cursor(buffered=True)
             cursor.execute(sql_query, params)
             books = [Book(*row) for row in cursor.fetchall()]
             cursor.execute(sql_query_cnt, params)
@@ -687,7 +744,7 @@ class DatabaseBooks():
     async def get_book_info(self, book_id):
         """Получает основную информацию о книге"""
         with self.connect() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(buffered=True)
             cursor.execute("""
                 SELECT b.Title, b.Year, sn.SeqName,
                        GROUP_CONCAT(DISTINCT gl.GenreDesc SEPARATOR ', ') as Genres,
@@ -714,22 +771,22 @@ class DatabaseBooks():
             result = cursor.fetchone()
             cover_url = f"{FLIBUSTA_BASE_URL}/ib/{result[5]}" if result[5] else None
             return {
-                'title': result[0] if result else None,
-                'year': result[1] if result else None,
-                'series': result[2] if result else None,
-                'genre': result[3] if result else None,
-                'authors': result[4] if result else None,
+                'title': result[0],
+                'year': result[1],
+                'series': result[2],
+                'genre': result[3],
+                'authors': result[4],
                 'cover_url': cover_url,
-                'size': result[6] if result else None,
-                'pages': result[7] if result else None,
-                'lang': result[8] if result else None,
-                'rate': result[9] if result else None,
-            }
+                'size': result[6],
+                'pages': result[7],
+                'lang': result[8],
+                'rate': result[9],
+            } if result else None
 
     async def get_book_details(self, book_id):
         """Получает детальную информацию о книге с обложкой и аннотацией"""
         with self.connect() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(buffered=True)
 
             # # Получаем обложку
             # cursor.execute("SELECT File FROM libbpics WHERE BookID = %s", (book_id,))
@@ -742,9 +799,9 @@ class DatabaseBooks():
 
             return {
                 # 'cover_url': cover_url,
-                'title': annotation_result[0] if annotation_result else None,
-                'annotation': annotation_result[1] if annotation_result else None
-            }
+                'title': annotation_result[0],
+                'annotation': annotation_result[1]
+            } if annotation_result else None
 
 
     def search_series(self, query, max_books, lang, size_limit, rating_filter=None):
@@ -779,7 +836,7 @@ class DatabaseBooks():
 
         with self.connect() as conn:
             # conn.create_function("REMOVE_PUNCTUATION", 1, remove_punctuation)
-            cursor = conn.cursor()
+            cursor = conn.cursor(buffered=True)
             cursor.execute(sql_query, params)
             series = cursor.fetchall()
             cursor.execute(sql_query_cnt, params)
@@ -788,25 +845,42 @@ class DatabaseBooks():
         return series, count
 
 
-    async def get_author_info(self, book_id):
+    async def get_authors_id(self, book_id: int) -> List:
+        """Получает ID авторов книги"""
+        with self.connect() as conn:
+            cursor = conn.cursor(buffered=True)
+
+            # Получаем id всех авторов книги
+            cursor.execute("""
+                SELECT DISTINCT a.AvtorID 
+                FROM libavtor a 
+                WHERE a.BookID = %s
+            """, (book_id,))
+            author_result = cursor.fetchall()
+
+            if not author_result:
+                return None
+            else:
+                return [author_id[0] for author_id in author_result]
+
+
+    async def get_author_info(self, author_id: int) -> Dict:
         """Получает информацию об авторе книги"""
         with self.connect() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(buffered=True)
 
             # Получаем первого автора книги
             cursor.execute("""
-                SELECT an.AvtorID, an.LastName, an.FirstName 
+                SELECT an.AvtorID, an.LastName, an.FirstName, an.MiddleName 
                 FROM libavtor a 
                 JOIN libavtorname an ON a.AvtorID = an.AvtorID 
-                WHERE a.BookID = %s 
+                WHERE an.AvtorID = %s
                 LIMIT 1
-            """, (book_id,))
+            """, (author_id,))
             author_result = cursor.fetchone()
 
             if not author_result:
                 return None
-
-            author_id = author_result[0]
 
             # Получаем фото автора
             cursor.execute("SELECT File FROM libapics WHERE AvtorID = %s", (author_id,))
@@ -818,16 +892,17 @@ class DatabaseBooks():
             annotation_result = cursor.fetchone()
 
             return {
-                'name': f"{author_result[1]} {author_result[2]}",
+                'name': f"{author_result[1]} {author_result[2]} {author_result[3]}",
                 'photo_url': photo_url,
-                'title': annotation_result[0] if annotation_result else None,
-                'biography': annotation_result[1] if annotation_result else None
-            }
+                'title': annotation_result[0],
+                'biography': annotation_result[1]
+            } if annotation_result else None
+
 
     async def get_book_reviews(self, book_id):
         """Получает отзывы о книге"""
         with self.connect() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(buffered=True)
             cursor.execute("""
                 SELECT Name, Time, Text 
                 FROM libreviews 
@@ -836,24 +911,6 @@ class DatabaseBooks():
             """, (book_id,))
             return cursor.fetchall()
 
-
-    # def get_authors_first_letters(self, first_letter="", num_letters=1 ):
-    #     """Получает список первых букв фамилий авторов"""
-    #     with self.connect() as conn:
-    #         cursor = conn.cursor()
-    #         cursor.execute("""
-    #             SELECT DISTINCT SUBSTR(REGEXP_REPLACE(LastName, '^[^[:alpha:]]*', ''), 1, %s) as first_letter, COUNT(DISTINCT(LastName)) as cnt
-    #             FROM libavtorname
-    #             WHERE LastName IS NOT NULL AND LastName != ''
-    #               and (SUBSTR(REGEXP_REPLACE(LastName, '^[^[:alpha:]]*', ''), 1, 1) = %s OR %s = "")
-    #             GROUP BY SUBSTR(REGEXP_REPLACE(LastName, '^[^[:alpha:]]*', ''), 1, %s)
-    #             HAVING cnt > 1
-    #             ORDER BY first_letter
-    #         """ , (num_letters, first_letter, first_letter, num_letters))
-    #         results = cursor.fetchall()
-    #         return [(row[0],row[1]) for row in results] if results else []
-
-    # В файле database.py добавляем метод search_authors
 
     def search_authors(self, query, max_books, lang, size_limit, rating_filter=None):
         """Ищет авторов по запросу"""
@@ -871,10 +928,11 @@ class DatabaseBooks():
         SELECT 
             CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, '')) as AuthorName,
             UPPER(CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, ''))) as SearchAuthorName,
-            COUNT(DISTINCT FileName) as book_count
+            COUNT(DISTINCT FileName) as book_count,
+            AuthorID
         FROM ({SQL_QUERY_BOOKS} {sql_where}) as subquery
         WHERE LastName <> '' OR FirstName <> '' OR MiddleName <> ''
-        GROUP BY AuthorName, SearchAuthorName
+        GROUP BY AuthorName, SearchAuthorName, AuthorID
         ORDER BY book_count DESC, AuthorName
         -- LIMIT {max_books}
         """
@@ -882,7 +940,7 @@ class DatabaseBooks():
         sql_query_cnt = f"SELECT COUNT(*) FROM ({sql_query}) as subquery2"
 
         with self.connect() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(buffered=True)
             cursor.execute(sql_query, params)
             authors = cursor.fetchall()
             cursor.execute(sql_query_cnt, params)
@@ -1057,57 +1115,5 @@ class DatabaseBooks():
 
         return sql_where, params
 
-    def get_library_stats(self):
-        """Возвращает статистику библиотеки"""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
 
-                # Статистика книг
-                cursor.execute("""
-                    SELECT 
-                        MAX(date(time)) as max_update_date,
-                        COUNT(*) as books_cnt,
-                        MAX(bookid) as max_filename
-                    FROM libbook b
-                    where b.Deleted = '0'
-                """)
-                books_stats = cursor.fetchone()
-
-                # Количество авторов
-                cursor.execute("SELECT COUNT(*) FROM libavtorname")
-                authors_cnt = cursor.fetchone()[0]
-
-                # Количество жанров
-                cursor.execute("SELECT COUNT(*) FROM libgenrelist")
-                genres_cnt = cursor.fetchone()[0]
-
-                # Количество серий
-                cursor.execute("SELECT COUNT(*) FROM libseqname")
-                series_cnt = cursor.fetchone()[0]
-
-                # Количество языков
-                cursor.execute("SELECT COUNT(DISTINCT Lang) FROM libbook WHERE Deleted = '0'")
-                langs_cnt = cursor.fetchone()[0]
-
-                return {
-                    'last_update': books_stats[0],
-                    'books_count': books_stats[1],
-                    'max_filename': books_stats[2],
-                    'authors_count': authors_cnt,
-                    'genres_count': genres_cnt,
-                    'series_count': series_cnt,
-                    'languages_count': langs_cnt
-                }
-        except Exception as e:
-            print(f"Error getting library stats: {e}")
-            return {
-                'last_update': None,
-                'books_count': 0,
-                'max_filename': 'N/A',
-                'authors_count': 0,
-                'genres_count': 0,
-                'series_count': 0,
-                'languages_count': 0
-            }
 
