@@ -7,7 +7,7 @@ import mysql.connector
 from contextlib import contextmanager
 
 from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, SEARCH_CRITERIA, FLIBUSTA_BASE_URL
-from utils import split_query_into_words, extract_criteria, remove_punctuation
+from utils import split_query_into_words, extract_criteria, get_cover_url
 
 Book = namedtuple('Book', ['FileName', 'Title', 'SearchTitle', 'SearchLang', 'Author', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'GenreParent', 'Folder', 'Ext', 'BookSize', 'SearchYear', 'LibRate', 'UpdateDate'])
 UserSettings = namedtuple('UserSettings',['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate', 'IsBlocked'])
@@ -770,6 +770,12 @@ class DatabaseBooks():
             """, (book_id,))
             result = cursor.fetchone()
             cover_url = f"{FLIBUSTA_BASE_URL}/ib/{result[5]}" if result[5] else None
+            # print(f"DEBUG: cover_url = {cover_url}")
+            # Получение ссылки на обложку со страницы книги, если нет в БД
+            if not cover_url:
+                cover_url = await get_cover_url(book_id)
+                # print(f"DEBUG: cover_url = {cover_url}")
+
             return {
                 'title': result[0],
                 'year': result[1],

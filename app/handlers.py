@@ -1515,6 +1515,7 @@ async def handle_book_info(query, context, action, params):
         message_text = format_book_info(book_info)
 
         # print(f"DEBUG: book_info = {book_info}")
+        # print(f"DEBUG: len = {len(message_text)} message_text = {message_text}")
         # Отправляем сообщение без кнопок сначала
         # Если есть обложка, отправляем фото
         if book_info.get('cover_url'):

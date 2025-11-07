@@ -56,13 +56,14 @@ EOF
 
     scp .env.vps $VPS_USER@$VPS_IP:$VPS_PATH/.env
     scp docker-compose.yml $VPS_USER@$VPS_IP:$VPS_PATH/docker-compose.yml
-    scp db_init/init_db.sh $VPS_USER@$VPS_IP:$VPS_PATH/db_init/init_db.sh
-    scp db_init/00_convert_charset.sql $VPS_USER@$VPS_IP:$VPS_PATH/db_init/00_convert_charset.sql
+#    scp db_init/init_db.sh $VPS_USER@$VPS_IP:$VPS_PATH/db_init/init_db.sh
+    scp db_init/zz_convert_charset.sql $VPS_USER@$VPS_IP:$VPS_PATH/db_init/zz_convert_charset.sql
 
     # Копируем SQL файлы если они существуют
     if ls db_init/sql/*.sql.gz 1> /dev/null 2>&1; then
         echo "📦 Copying SQL.gz files to VPS..."
-        scp db_init/sql/*.sql.gz $VPS_USER@$VPS_IP:$VPS_PATH/db_init/sql/
+#        scp db_init/sql/*.sql.gz $VPS_USER@$VPS_IP:$VPS_PATH/db_init/sql/
+        rsync -avz --progress --partial db_init/sql/*.sql.gz $VPS_USER@$VPS_IP:$VPS_PATH/db_init/sql
     else
         echo "⚠️  No SQL.gz files found in db_init/sql/"
     fi
@@ -98,8 +99,8 @@ reinitialize_database() {
 cd ~/$VPS_PATH
 
 echo "🗑️  Removing old database volume..."
-#docker-compose down
-docker-compose down -v
+#docker-compose down || true
+docker-compose down -v || true
 
 echo "🗜️  Extracting SQL files..."
 for gz_file in db_init/sql/*.sql.gz; do
@@ -251,8 +252,8 @@ case "${1:-}" in
         copy_news_file
         setup_permissions
         build_and_push_image
-        deploy_containers
-        check_status
+#        deploy_containers
+#        check_status
         cleanup
         echo "✅ Full deployment completed!"
         ;;

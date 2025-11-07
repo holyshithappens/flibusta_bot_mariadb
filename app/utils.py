@@ -3,15 +3,16 @@ import re
 import sys
 # import xml.etree.ElementTree as ET
 # import base64
-from urllib.parse import unquote #, urljoin, quote
+from urllib.parse import unquote, urljoin  # , urljoin, quote
 import aiohttp
 #import chardet
-#from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup
 import importlib.util
 from typing import List, Dict, Any
 import html
 
-from constants import CRITERIA_PATTERN, CRITERIA_PATTERN_SERIES_QUOTED #, FLIBUSTA_DB_BOOKS_PATH  # FLIBUSTA_BASE_URL
+from constants import CRITERIA_PATTERN, CRITERIA_PATTERN_SERIES_QUOTED, \
+    FLIBUSTA_BASE_URL  # , FLIBUSTA_DB_BOOKS_PATH
 
 #from html import unescape
 #from constants import FLIBUSTA_BASE_URL
@@ -518,7 +519,8 @@ def format_book_info(book_info):
     # title, year, series, genre, authors = book_info
 
     text = f"📚 <b>{book_info['title']}</b>\n\n"
-    text += f"👤 <b>Автор(ы):</b> {book_info['authors'] or 'Не указаны'}\n"
+    authors = book_info['authors'][:300] + ("..." if len(book_info['authors']) > 300 else "")
+    text += f"👤 <b>Автор(ы):</b> {authors or 'Не указаны'}\n"
     year = book_info['year']
     series = book_info['series']
     genre = book_info['genre']
@@ -603,24 +605,35 @@ def clean_html_tags(text):
     clean_text = clean_text.strip()
     return clean_text
 
-# async def get_cover_url(book_id: str):
-#     """Простой поиск обложки через BeautifulSoup"""
-#     try:
-#         url = f"{FLIBUSTA_BASE_URL}/b/{book_id}"
-#         async with aiohttp.ClientSession() as session:
-#             async with session.get(url) as response:
-#                 if response.status == 200:
-#                     html = await response.text()
-#                     soup = BeautifulSoup(html, 'html.parser')
-#                     cover_img = soup.find('img', title='Cover image')
-#                     if cover_img and cover_img.get('app'):
-#                         return urljoin(FLIBUSTA_BASE_URL, cover_img['app'])
-#         return None
-#     except Exception as e:
-#         print(f"Ошибка получения обложки: {e}")
-#         return None
-#
-#
+async def get_cover_url(book_id: str):
+    """Простой поиск обложки через BeautifulSoup"""
+    try:
+        url = f"{FLIBUSTA_BASE_URL}/b/{book_id}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    html_resp = await response.text()
+                    # print(f"DEBUG: html_resp = {html_resp}")
+                    soup = BeautifulSoup(html_resp, 'html.parser')
+                    # cover_img = soup.find('img', title='Cover image')
+                    # if cover_img and cover_img.get('app'):
+                    #     return urljoin(FLIBUSTA_BASE_URL, cover_img['app'])
+                    # Ищем обложку по title или alt
+                    cover_img = soup.find('img', {'title': 'Cover image'})
+                    if not cover_img:
+                        cover_img = soup.find('img', {'alt': 'Cover image'})
+
+                    if cover_img and cover_img.get('src'):
+                        cover_url = cover_img['src']
+                        if not cover_url.startswith('http'):
+                            cover_url = f"{FLIBUSTA_BASE_URL}{cover_url}"
+                        return cover_url
+        return None
+    except Exception as e:
+        print(f"Ошибка получения обложки: {e}")
+        return None
+
+
 # async def download_cover(cover_url: str):
 #     """Скачивает обложку по URL"""
 #     try:
