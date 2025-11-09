@@ -23,10 +23,12 @@ class SingletonLogger:
         Инициализирует логгер.
         """
         self.logger = logging.getLogger('bot_logger')
-        self.logger.setLevel(logging.INFO)
+        # self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
 
         # Формат записи логов
-        formatter = logging.Formatter('%(asctime)s - %(message)s')
+        # formatter = logging.Formatter('%(asctime)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
         # Обработчик для записи логов в файл с ротацией по дням
         file_handler = TimedRotatingFileHandler(
