@@ -41,7 +41,7 @@ SQL_QUERY_BOOKS = """
         b.Year as SearchYear, 
     --    upper(bm.City) as SearchCity, 
     --    upper(bm.Publisher) as SearchPublisher,
-        upper(regexp_replace(concat(' ', b.Title, ' ', coalesce(an.LastName,''), ' ', coalesce(an.FirstName,''), ' ', coalesce(an.MiddleName,''), ' ', coalesce(sn.SeqName,''), ' ', coalesce(gl.GenreDesc,''), ' ', b.Lang, ' '),'[[:punct:]]',' ')) AS FullSearch,
+        upper(regexp_replace(concat(' ', b.Title, ' ', coalesce(an.LastName,''), ' ', coalesce(an.FirstName,''), ' ', coalesce(an.MiddleName,''), ' ', coalesce(sn.SeqName,''), ' ', coalesce(gl.GenreDesc,''), ' ', b.Lang, ' ')  COLLATE utf8mb3_bin,'[[:punct:]]',' ')) AS FullSearch,
         b.Pages,
         an.AvtorID as AuthorID
     FROM libbook b
