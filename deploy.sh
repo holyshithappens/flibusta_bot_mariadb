@@ -255,8 +255,8 @@ case "${1:-}" in
         prompt_user_input_vps
         prompt_user_input_docker
         setup_directories_and_files
-        copy_sql_files
-        extract_sql_files_on_vps
+#        copy_sql_files
+#        extract_sql_files_on_vps
         copy_news_file
         setup_permissions
         build_and_push_image
