@@ -1812,6 +1812,8 @@ async def handle_search_author_books(query, context, action, params):
         else:
             await query.edit_message_text(f"Не найдено книг автора '{author_name}'")
 
+        logger.log_user_action(user, "searched for books", f"{query_text}; count:{found_books_count}")
+
     except (ValueError, IndexError) as e:
         print(f"Ошибка при обработке автора: {e}")
         await query.edit_message_text("❌ Ошибка при загрузке автора")
