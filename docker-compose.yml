@@ -13,8 +13,9 @@ services:
       - MYSQL_PASSWORD=${DB_PASSWORD:-flibusta}
       - TZ=Europe/Moscow
     command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
+      - --character-set-server=utf8mb3
+      - --collation-server=utf8mb3_unicode_ci
+      - --skip-character-set-client-handshake  # ИГНОРИРОВАТЬ клиентские настройки
     volumes:
       - mariadb_data:/var/lib/mysql  # Тот же volume
       - ./db_init:/docker-entrypoint-initdb.d:ro
@@ -25,7 +26,7 @@ services:
       timeout: 5s
       retries: 3
 
-  flibusta-bot:
+  bot:
     image: holyshithappens/flbst-bot-mdb
     container_name: flibusta-bot
     restart: unless-stopped
