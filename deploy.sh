@@ -57,9 +57,16 @@ EOF
     scp .env.vps $VPS_USER@$VPS_IP:$VPS_PATH/.env
     scp docker-compose.yml $VPS_USER@$VPS_IP:$VPS_PATH/docker-compose.yml
 #    scp db_init/init_db.sh $VPS_USER@$VPS_IP:$VPS_PATH/db_init/init_db.sh
-    scp db_init/zz_convert_charset.sql $VPS_USER@$VPS_IP:$VPS_PATH/db_init/zz_convert_charset.sql
+
+    echo "✅ Directories and files setup completed"
+}
+
+copy_sql_files() {
+    echo ""
+    echo "📁 Copying SQL files on VPS..."
 
     # Копируем SQL файлы если они существуют
+    scp db_init/zz_convert_charset.sql $VPS_USER@$VPS_IP:$VPS_PATH/db_init/zz_convert_charset.sql
     if ls db_init/sql/*.sql.gz 1> /dev/null 2>&1; then
         echo "📦 Copying SQL.gz files to VPS..."
 #        scp db_init/sql/*.sql.gz $VPS_USER@$VPS_IP:$VPS_PATH/db_init/sql/
@@ -68,7 +75,7 @@ EOF
         echo "⚠️  No SQL.gz files found in db_init/sql/"
     fi
 
-    echo "✅ Directories and files setup completed"
+    echo "✅ SQL files setup completed"
 }
 
 extract_sql_files_on_vps() {
@@ -248,6 +255,7 @@ case "${1:-}" in
         prompt_user_input_vps
         prompt_user_input_docker
         setup_directories_and_files
+        copy_sql_files
         extract_sql_files_on_vps
         copy_news_file
         setup_permissions

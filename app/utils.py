@@ -556,7 +556,7 @@ def format_book_details(book_details):
         # # # clean_annotation = book_details['annotation']
         # clean_annotation = html.escape(book_details['annotation'])
         clean_annotation = clean_html_tags(book_details['annotation'])
-        text += f"{clean_annotation[:2000]}" + ("..." if len(clean_annotation) > 2000 else "")
+        text += f"{clean_annotation[:3000]}" + ("..." if len(clean_annotation) > 3000 else "")
 
     return text
 
