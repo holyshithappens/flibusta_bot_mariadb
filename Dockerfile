@@ -38,4 +38,4 @@ USER botuser
 EXPOSE 8000
 
 # Запускаем бота
-CMD ["python", "main.py"]
+CMD ["python", "-u", "main.py"]

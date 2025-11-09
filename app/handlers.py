@@ -443,9 +443,9 @@ async def handle_message(update: Update, context: CallbackContext):
             return
         raise e
     except Exception as e:
-        logger.error(f"Error in handle_message: {e}", exc_info=True)
         print(f"Error in handle_message: {e}")
         await update.message.reply_text("❌ Произошла ошибка при обработке запроса")
+        logger.logger.error(f"Error in handle_message: {e}", exc_info=True)
 
     await log_stats(context)
 
