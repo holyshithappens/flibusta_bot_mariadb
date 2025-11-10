@@ -16,6 +16,21 @@ services:
       - --character-set-server=utf8mb3
       - --collation-server=utf8mb3_unicode_ci
       - --skip-character-set-client-handshake  # ИГНОРИРОВАТЬ клиентские настройки
+      - --innodb-buffer-pool-size=128M #(было 128M)
+      - --key-buffer-size=32M #(было 8M)
+      - --max-connections=100 #(было 151)
+      - --query-cache-size=0 #(совпадает)
+      - --tmp-table-size=16M #(было 16M)
+      - --max-heap-table-size=16M #(было 16M)
+      - --table-open-cache=400 #(было 2000)
+      - --thread-cache-size=8 #(было 0) - определяется автоматически
+      - --innodb-log-file-size=32M #(было 48M)
+      - --performance-schema=OFF #(было ON)
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: '0.7'
     volumes:
       - mariadb_data:/var/lib/mysql  # Тот же volume
       - ./db_init:/docker-entrypoint-initdb.d:ro
@@ -34,6 +49,11 @@ services:
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - DB_HOST=mariadb
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.3'
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
