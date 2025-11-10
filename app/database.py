@@ -604,12 +604,16 @@ class DatabaseSettings(Database):
 
 # Класс для работы с БД библиотеки
 class DatabaseBooks():
+    _class_cached_langs = None
+    _class_cached_parent_genres = None
+    _class_cached_genres = {}  # Словарь для кеширования жанров по родительским категориям
+
     def __init__(self, db_config):
         self.db_config = db_config
         self._connection = None
-        self._cached_langs = None
-        self._cached_parent_genres = None
-        self._cached_genres = {}  # Словарь для кеширования жанров по родительским категориям
+        # self._cached_langs = None
+        # self._cached_parent_genres = None
+        # self._cached_genres = {}  # Словарь для кеширования жанров по родительским категориям
 
     @contextmanager
     def connect(self):
@@ -678,22 +682,22 @@ class DatabaseBooks():
 
     def get_parent_genres_with_counts(self):
         """Получает родительские жанры с кешированием"""
-        if self._cached_parent_genres is None:
+        if DatabaseBooks._class_cached_parent_genres is None:
             with self.connect() as conn:
                 cursor = conn.cursor(buffered=True)
                 cursor.execute(SQL_QUERY_PARENT_GENRES_COUNT)
-                self._cached_parent_genres = cursor.fetchall()
-        return self._cached_parent_genres
+                DatabaseBooks._class_cached_parent_genres = cursor.fetchall()
+        return DatabaseBooks._class_cached_parent_genres
 
 
     def get_genres_with_counts(self, parent_genre):
-        if parent_genre not in self._cached_genres:
+        if parent_genre not in DatabaseBooks._class_cached_genres:
             with self.connect() as conn:
                 cursor = conn.cursor(buffered=True)
                 cursor.execute(SQL_QUERY_CHILDREN_GENRES_COUNT, (parent_genre,))
                 results = cursor.fetchall()
-                self._cached_genres[parent_genre] = [(genre[0].strip(), genre[1]) for genre in results if genre[0].strip()]
-        return self._cached_genres[parent_genre]
+                DatabaseBooks._class_cached_genres[parent_genre] = [(genre[0].strip(), genre[1]) for genre in results if genre[0].strip()]
+        return DatabaseBooks._class_cached_genres[parent_genre]
 
 
     def get_langs(self):
@@ -703,12 +707,12 @@ class DatabaseBooks():
 #            cursor.execute(SQL_QUERY_LANGS)
 #            results = cursor.fetchall()
 #        return results
-        if self._cached_langs is None:
+        if DatabaseBooks._class_cached_langs is None:
             with self.connect() as conn:
                 cursor = conn.cursor(buffered=True)
                 cursor.execute(SQL_QUERY_LANGS)
-                self._cached_langs = cursor.fetchall()
-        return self._cached_langs
+                DatabaseBooks._class_cached_langs = cursor.fetchall()
+        return DatabaseBooks._class_cached_langs
 
 
     def search_books(self, query, max_books, lang, sort_order, size_limit, rating_filter=None):

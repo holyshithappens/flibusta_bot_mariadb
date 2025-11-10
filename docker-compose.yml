@@ -17,7 +17,7 @@ services:
       - --collation-server=utf8mb3_unicode_ci
       - --skip-character-set-client-handshake  # ИГНОРИРОВАТЬ клиентские настройки
       - --innodb-buffer-pool-size=128M #(было 128M)
-      - --key-buffer-size=32M #(было 8M)
+      - --key-buffer-size=32M #(было 8M)e
       - --max-connections=100 #(было 151)
       - --query-cache-size=0 #(совпадает)
       - --tmp-table-size=16M #(было 16M)
