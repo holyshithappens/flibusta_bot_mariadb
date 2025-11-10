@@ -25,12 +25,12 @@ services:
       - --table-open-cache=400 #(было 2000)
       - --thread-cache-size=8 #(было 0) - определяется автоматически
       - --innodb-log-file-size=32M #(было 48M)
-      - --performance-schema=OFF #(было ON)
+      - --performance-schema=ON #(было ON)
     deploy:
       resources:
         limits:
-          memory: 384M
-          cpus: '0.7'
+          memory: 512M
+          cpus: '0.8'
     volumes:
       - mariadb_data:/var/lib/mysql  # Тот же volume
       - ./db_init:/docker-entrypoint-initdb.d:ro
@@ -52,8 +52,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
-          cpus: '0.3'
+          memory: 256M
+          cpus: '0.4'
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
