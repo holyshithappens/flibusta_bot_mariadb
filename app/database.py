@@ -882,8 +882,9 @@ class DatabaseBooks():
             # Получаем первого автора книги
             cursor.execute("""
                 SELECT an.AvtorID, an.LastName, an.FirstName, an.MiddleName 
-                FROM libavtor a 
-                JOIN libavtorname an ON a.AvtorID = an.AvtorID 
+                -- FROM libavtor a 
+                -- JOIN libavtorname an ON a.AvtorID = an.AvtorID 
+                FROM libavtorname an
                 WHERE an.AvtorID = %s
                 LIMIT 1
             """, (author_id,))
