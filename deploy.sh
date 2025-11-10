@@ -260,8 +260,8 @@ case "${1:-}" in
         copy_news_file
         setup_permissions
         build_and_push_image
-#        deploy_containers
-#        check_status
+        deploy_containers
+        check_status
         cleanup
         echo "✅ Full deployment completed!"
         ;;
