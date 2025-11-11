@@ -6,61 +6,103 @@ from typing import Dict, List
 import mysql.connector
 from contextlib import contextmanager
 
-from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, SEARCH_CRITERIA, FLIBUSTA_BASE_URL
-from utils import split_query_into_words, extract_criteria, get_cover_url
+from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, FLIBUSTA_BASE_URL, MAX_BOOKS_SEARCH #, SEARCH_CRITERIA
+from utils import get_cover_url #split_query_into_words, extract_criteria,
 
-Book = namedtuple('Book', ['FileName', 'Title', 'SearchTitle', 'SearchLang', 'Author', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'GenreParent', 'Folder', 'Ext', 'BookSize', 'SearchYear', 'LibRate', 'UpdateDate'])
+# Book = namedtuple('Book', ['FileName', 'Title', 'SearchTitle', 'SearchLang', 'Author', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'GenreParent', 'Folder', 'Ext', 'BookSize', 'SearchYear', 'LibRate', 'UpdateDate'])
+Book = namedtuple('Book', ['FileName', 'Title', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'BookSize', 'SearchYear', 'LibRate', 'SeriesTitle', 'Relevance'])
 UserSettings = namedtuple('UserSettings',['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate', 'IsBlocked'])
 
 # SQL-запросы
 SQL_QUERY_BOOKS = """
-    select * from (
-    SELECT 
-        b.Title,
-        upper(b.Lang) as SearchLang,
-        b.FileSize as BookSize,
-        round(coalesce(r.LibRate,0)) as LibRate, 
-        case 
-          when b.FileSize <= 800 * 1024 then 'less800'
-          when b.FileSize > 800 * 1024 then 'more800'
-          end as BookSizeCat,        
-        '' as Folder,
-        b.bookid as FileName,
-        b.FileType as Ext,
-        upper(b.Title) as SearchTitle,
-        date(b.Time) as UpdateDate,
-        upper(concat(coalesce(an.LastName,''), ' ', coalesce(an.FirstName,''), ' ', coalesce(an.MiddleName,''))) AS Author,
-        an.LastName,
-        an.FirstName,
-        an.MiddleName,
-        sn.SeqName as SeriesTitle, 
-        upper(sn.SeqName) as SearchSeriesTitle,
-        gl.GenreDesc AS Genre,
-        upper(gl.GenreDesc) as GenreUpper,
-        gl.GenreMeta AS GenreParent,
-        b.Year as SearchYear, 
-    --    upper(bm.City) as SearchCity, 
-    --    upper(bm.Publisher) as SearchPublisher,
-        upper(regexp_replace(concat(' ', b.Title, ' ', coalesce(an.LastName,''), ' ', coalesce(an.FirstName,''), ' ', coalesce(an.MiddleName,''), ' ', coalesce(sn.SeqName,''), ' ', coalesce(gl.GenreDesc,''), ' ', b.Lang, ' ')  COLLATE utf8mb3_bin,'[[:punct:]]',' ')) AS FullSearch,
-        b.Pages,
-        an.AvtorID as AuthorID
-    FROM libbook b
-    LEFT JOIN libavtor a ON a.BookID = b.BookID
-    LEFT JOIN libavtorname an ON a.AvtorID = an.AvtorID
-    LEFT JOIN libseq s ON s.BookID = b.BookID
-    left join libseqname sn on s.SeqID = sn.SeqID
-    LEFT JOIN libgenre g ON g.BookID = b.BookID
-    left JOIN libgenrelist gl ON gl.GenreID = g.GenreID
-    -- left outer JOIN libbook_meta bm ON bm.BookID = b.BookID 
-    left outer join ( 
-      select 
-        r.BookId, 
-        avg(cast(r.Rate as signed)) as Librate
-      from librate r 
-      group by r.BookId 
-      ) r on r.BookId = b.BookId
-    where b.Deleted = '0' ) as subq
+select * from (
+SELECT 
+    b.BookID as FileName,
+    upper(b.Lang) as SearchLang,
+    b.Title,
+    an.LastName,
+    an.FirstName, 
+    an.MiddleName,
+    an.AvtorId as AuthorID,
+    gl.GenreDesc AS Genre,
+    b.FileSize as BookSize,
+    ROUND(COALESCE(r.LibRate, 0)) as LibRate,
+    case 
+      when b.FileSize <= 800 * 1024 then 'less800'
+      when b.FileSize > 800 * 1024 then 'more800'
+    end as BookSizeCat,  
+    sn.SeqName as SeriesTitle, 
+    -- upper(sn.SeqName) as SearchSeriesTitle,
+    sn.SeqId as SeriesID, 
+    b.Year as SearchYear, 
+    MATCH(fts.FT) AGAINST(%s IN BOOLEAN MODE) as Relevance
+FROM libbook_fts fts
+JOIN libbook b ON b.BookID = fts.BookID
+LEFT JOIN libavtor a ON a.BookID = b.BookID
+LEFT JOIN libavtorname an ON a.AvtorID = an.AvtorID
+LEFT JOIN libgenre g ON g.BookID = b.BookID
+LEFT JOIN libgenrelist gl ON g.GenreID = gl.GenreID
+LEFT JOIN libseq s ON s.BookID = b.BookID
+left join libseqname sn on s.SeqID = sn.SeqID
+LEFT JOIN (
+    SELECT BookId, AVG(CAST(Rate AS SIGNED)) as LibRate
+    FROM librate 
+    GROUP BY BookId
+) r ON r.BookId = b.BookId
+WHERE b.Deleted = '0'
+  AND MATCH(fts.FT) AGAINST(%s IN BOOLEAN MODE)
+-- ORDER BY relevance DESC, FileName {sort_order}
+-- LIMIT 2000
+) as subq 
 """
+# SQL_QUERY_BOOKS = """
+#     select * from (
+#     SELECT
+#         b.Title,
+#         upper(b.Lang) as SearchLang,
+#         b.FileSize as BookSize,
+#         round(coalesce(r.LibRate,0)) as LibRate,
+#         case
+#           when b.FileSize <= 800 * 1024 then 'less800'
+#           when b.FileSize > 800 * 1024 then 'more800'
+#           end as BookSizeCat,
+#         '' as Folder,
+#         b.bookid as FileName,
+#         b.FileType as Ext,
+#         upper(b.Title) as SearchTitle,
+#         date(b.Time) as UpdateDate,
+#         upper(concat(coalesce(an.LastName,''), ' ', coalesce(an.FirstName,''), ' ', coalesce(an.MiddleName,''))) AS Author,
+#         an.LastName,
+#         an.FirstName,
+#         an.MiddleName,
+#         sn.SeqName as SeriesTitle,
+#         upper(sn.SeqName) as SearchSeriesTitle,
+#         gl.GenreDesc AS Genre,
+#         upper(gl.GenreDesc) as GenreUpper,
+#         gl.GenreMeta AS GenreParent,
+#         b.Year as SearchYear,
+#     --    upper(bm.City) as SearchCity,
+#     --    upper(bm.Publisher) as SearchPublisher,
+#         upper(regexp_replace(concat(' ', b.Title, ' ', coalesce(an.LastName,''), ' ', coalesce(an.FirstName,''), ' ', coalesce(an.MiddleName,''), ' ', coalesce(sn.SeqName,''), ' ', coalesce(gl.GenreDesc,''), ' ', b.Lang, ' ')  COLLATE utf8mb3_bin,'[[:punct:]]',' ')) AS FullSearch,
+#         b.Pages,
+#         an.AvtorID as AuthorID
+#     FROM libbook b
+#     LEFT JOIN libavtor a ON a.BookID = b.BookID
+#     LEFT JOIN libavtorname an ON a.AvtorID = an.AvtorID
+#     LEFT JOIN libseq s ON s.BookID = b.BookID
+#     left join libseqname sn on s.SeqID = sn.SeqID
+#     LEFT JOIN libgenre g ON g.BookID = b.BookID
+#     left JOIN libgenrelist gl ON gl.GenreID = g.GenreID
+#     -- left outer JOIN libbook_meta bm ON bm.BookID = b.BookID
+#     left outer join (
+#       select
+#         r.BookId,
+#         avg(cast(r.Rate as signed)) as Librate
+#       from librate r
+#       group by r.BookId
+#       ) r on r.BookId = b.BookId
+#     where b.Deleted = '0' ) as subq
+# """
 
 SQL_QUERY_PARENT_GENRES_COUNT = """
 	select coalesce(GenreMeta,'Неотсортированное'), count(b.BookId)
@@ -715,19 +757,20 @@ class DatabaseBooks():
         return DatabaseBooks._class_cached_langs
 
 
-    def search_books(self, query, max_books, lang, sort_order, size_limit, rating_filter=None):
+    def search_books(self, query, lang, sort_order, size_limit, rating_filter=None, series_id=0, author_id=0, _max_books=None):
         # Разбиваем запрос на критерии и их значения
-        criteries = extract_criteria(query)
-        if criteries:
-            # Если критерии заданы, формируем условие поиска книг по этим критериям
-            sql_where, params = self.build_sql_where_by_criteria(criteries, lang, size_limit, rating_filter)
-        else:
-            # Если критерии не заданы, формируем условие поиска книг по словам в запросе
-            words = split_query_into_words(query)
-            sql_where, params = self.build_sql_where(words, lang, size_limit, rating_filter)
+        # criteries = extract_criteria(query)
+        # if criteries:
+        #     # Если критерии заданы, формируем условие поиска книг по этим критериям
+        #     sql_where, params = self.build_sql_where_by_criteria(criteries, lang, size_limit, rating_filter)
+        # else:
+        #     # Если критерии не заданы, формируем условие поиска книг по словам в запросе
+        #     words = split_query_into_words(query)
+        #     sql_where, params = self.build_sql_where(words, lang, size_limit, rating_filter)
 
+        sql_where, params = self.build_sql_where_ft(query, lang, size_limit, rating_filter, series_id, author_id)
         # Строим запросы для поиска книг и подсчёта количества найденных книг
-        sql_query, sql_query_cnt = self.build_sql_queries(sql_where, max_books, sort_order)
+        sql_query, sql_query_cnt = self.build_sql_queries_ft(sql_where, sort_order)
 
         # #DEBUG
         # print(f"DEBUG: sql_query = {sql_query}")
@@ -814,35 +857,40 @@ class DatabaseBooks():
             } if annotation_result else None
 
 
-    def search_series(self, query, max_books, lang, size_limit, rating_filter=None):
+    def search_series(self, query, lang, size_limit, rating_filter=None, _max_books=None):
         """Ищет серии по запросу"""
-        # Разбиваем запрос на критерии
-        criteries = extract_criteria(query)
+        # # Разбиваем запрос на критерии
+        # criteries = extract_criteria(query)
+        #
+        # if criteries:
+        #     sql_where, params = self.build_sql_where_by_criteria(criteries, lang, size_limit, rating_filter)
+        # else:
+        #     words = split_query_into_words(query)
+        #     sql_where, params = self.build_sql_where(words, lang, size_limit, rating_filter)
 
-        if criteries:
-            sql_where, params = self.build_sql_where_by_criteria(criteries, lang, size_limit, rating_filter)
-        else:
-            words = split_query_into_words(query)
-            sql_where, params = self.build_sql_where(words, lang, size_limit, rating_filter)
+        sql_where, params = self.build_sql_where_ft(query, lang, size_limit, rating_filter)
 
         # Модифицируем запрос для поиска серий
         sql_query = f"""
         SELECT 
             SeriesTitle, 
-            SearchSeriesTitle,
+            -- SearchSeriesTitle,
+            SeriesID,
             COUNT(DISTINCT FileName) as book_count
-        FROM ({SQL_QUERY_BOOKS} {sql_where}) as subquery
+        FROM ({SQL_QUERY_BOOKS} {sql_where}
+          ORDER BY relevance DESC) as subquery
         WHERE SeriesTitle IS NOT NULL
-        GROUP BY SeriesTitle, SearchSeriesTitle
+        GROUP BY SeriesTitle, SeriesID -- , SearchSeriesTitle
         ORDER BY book_count DESC, SeriesTitle
-        -- LIMIT {max_books}
+        -- LIMIT {_max_books}
+        LIMIT {MAX_BOOKS_SEARCH}
         """
 
         sql_query_cnt = f"SELECT COUNT(*) FROM ({sql_query}) as subquery2"
 
-        # #debug
-        # print(sql_query)
-        # print(params)
+        # #DEBUG
+        # print(f"DEBUG: sql_query = {sql_query}")
+        # print(f"DEBUG: params = {params}")
 
         with self.connect() as conn:
             # conn.create_function("REMOVE_PUNCTUATION", 1, remove_punctuation)
@@ -923,29 +971,32 @@ class DatabaseBooks():
             return cursor.fetchall()
 
 
-    def search_authors(self, query, max_books, lang, size_limit, rating_filter=None):
+    def search_authors(self, query, lang, size_limit, rating_filter=None, _max_books=None):
         """Ищет авторов по запросу"""
-        # Разбиваем запрос на критерии
-        criteries = extract_criteria(query)
+        # # Разбиваем запрос на критерии
+        # criteries = extract_criteria(query)
+        #
+        # if criteries:
+        #     sql_where, params = self.build_sql_where_by_criteria(criteries, lang, size_limit, rating_filter)
+        # else:
+        #     words = split_query_into_words(query)
+        #     sql_where, params = self.build_sql_where(words, lang, size_limit, rating_filter)
 
-        if criteries:
-            sql_where, params = self.build_sql_where_by_criteria(criteries, lang, size_limit, rating_filter)
-        else:
-            words = split_query_into_words(query)
-            sql_where, params = self.build_sql_where(words, lang, size_limit, rating_filter)
+        sql_where, params = self.build_sql_where_ft(query, lang, size_limit, rating_filter)
 
         # Модифицируем запрос для поиска авторов
         sql_query = f"""
         SELECT 
             CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, '')) as AuthorName,
-            UPPER(CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, ''))) as SearchAuthorName,
+            -- UPPER(CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, ''))) as SearchAuthorName,
             COUNT(DISTINCT FileName) as book_count,
             AuthorID
         FROM ({SQL_QUERY_BOOKS} {sql_where}) as subquery
         WHERE LastName <> '' OR FirstName <> '' OR MiddleName <> ''
-        GROUP BY AuthorName, SearchAuthorName, AuthorID
+        GROUP BY AuthorName, AuthorID -- , SearchAuthorName
         ORDER BY book_count DESC, AuthorName
-        -- LIMIT {max_books}
+        -- LIMIT {_max_books}
+        LIMIT {MAX_BOOKS_SEARCH}
         """
 
         sql_query_cnt = f"SELECT COUNT(*) FROM ({sql_query}) as subquery2"
@@ -960,66 +1011,98 @@ class DatabaseBooks():
         return authors, count
 
 
+    # @staticmethod
+    # def make_condition(field, source_word, operator, whole_word = True):
+    #     """
+    #     Формируем строку условия where по отдельному полю с учётом заданного оператора и индикатора целого слова
+    #     :param field: поле для поиска в БД
+    #     :param source_word: исходное слово поиска
+    #     :param operator: оператор поиска
+    #     :param whole_word: индикатор поиска целого слова
+    #     :return: отдельная строка условия where для заданного поля
+    #     """
+    #     condition = ''
+    #     value = ''
+    #     if whole_word:
+    #         # если ищем целое отдельное слово, окружаем его пробелами
+    #         word = f" {source_word.upper()} "
+    #     else:
+    #         word = source_word.upper()
+    #
+    #     if operator == 'LIKE':
+    #         #condition = f"{field} LIKE '%{word}%'"  # COLLATE MHL_SYSTEM_NOCASE")
+    #         condition = f"{field} LIKE %s"  # COLLATE MHL_SYSTEM_NOCASE")
+    #         value = f'%{word}%'
+    #     elif operator == '<>':
+    #         #condition = f"{field} NOT LIKE '%{word}%'"  # COLLATE MHL_SYSTEM_NOCASE")
+    #         condition = f"{field} NOT LIKE %s"  # COLLATE MHL_SYSTEM_NOCASE")
+    #         value = '%{word}%'
+    #     elif operator == '=':
+    #         #condition = f"{field} LIKE '{word}'"  # COLLATE MHL_SYSTEM_NOCASE")
+    #         condition = f"{field} = %s"  # COLLATE MHL_SYSTEM_NOCASE") #LIKE
+    #         value = f'{word}'
+    #     elif operator == '<=':
+    #         # condition = f"{field} LIKE '{word}'"  # COLLATE MHL_SYSTEM_NOCASE")
+    #         condition = f"{field} <= %s"  # COLLATE MHL_SYSTEM_NOCASE") #LIKE
+    #         value = f'{word}'
+    #     elif operator == '>=':
+    #         # condition = f"{field} LIKE '{word}'"  # COLLATE MHL_SYSTEM_NOCASE")
+    #         condition = f"{field} >= %s"  # COLLATE MHL_SYSTEM_NOCASE") #LIKE
+    #         value = f'{word}'
+    #     elif operator == 'NOT LIKE':
+    #         #condition = f"{field} NOT LIKE '%{word}%'"  # COLLATE MHL_SYSTEM_NOCASE")
+    #         condition = f"{field} NOT LIKE %s"  # COLLATE MHL_SYSTEM_NOCASE")
+    #         value = f'%{word}%'
+    #
+    #     return  condition, value
+
+
+    # @staticmethod
+    # def build_sql_where(words, lang, size_limit, rating_filter=None):
+    #     """
+    #     Создает SQL-условие WHERE на основе списка слов и их операторов.
+    #     """
+    #     conditions = []
+    #     params = []
+    #     for word, operator in words:
+    #         condition, param = DatabaseBooks.make_condition("FullSearch", word, operator)
+    #         conditions.append(condition)
+    #         params.append(param)
+    #
+    #     # Добавляем условие по языку, если задан в настройках пользователя
+    #     if lang and conditions:
+    #         conditions.append(f"SearchLang LIKE '{lang.upper()}'")
+    #
+    #     # Добавляем ограничение по размеру книг, если задан в настройках пользователя
+    #     if size_limit:
+    #         conditions.append(f"BookSizeCat = '{size_limit}'")
+    #
+    #     # ДОБАВЛЯЕМ ФИЛЬТРАЦИЮ ПО РЕЙТИНГУ
+    #     if rating_filter and rating_filter != '':
+    #         rating_values = [r.strip() for r in rating_filter.split(',') if r.strip()]
+    #         if rating_values:
+    #             rating_condition = f"LibRate IN ({', '.join(['%s'] * len(rating_values))})"
+    #             conditions.append(rating_condition)
+    #             params.extend(rating_values)
+    #
+    #     # в соновном sql вконце уже есть where, поэтому заменяем его на and
+    #     sql_where = "WHERE " + " AND ".join(conditions) if conditions else "WHERE 1=2"
+    #     return sql_where, params
+
+
     @staticmethod
-    def make_condition(field, source_word, operator, whole_word = True):
-        """
-        Формируем строку условия where по отдельному полю с учётом заданного оператора и индикатора целого слова
-        :param field: поле для поиска в БД
-        :param source_word: исходное слово поиска
-        :param operator: оператор поиска
-        :param whole_word: индикатор поиска целого слова
-        :return: отдельная строка условия where для заданного поля
-        """
-        condition = ''
-        value = ''
-        if whole_word:
-            # если ищем целое отдельное слово, окружаем его пробелами
-            word = f" {source_word.upper()} "
-        else:
-            word = source_word.upper()
-
-        if operator == 'LIKE':
-            #condition = f"{field} LIKE '%{word}%'"  # COLLATE MHL_SYSTEM_NOCASE")
-            condition = f"{field} LIKE %s"  # COLLATE MHL_SYSTEM_NOCASE")
-            value = f'%{word}%'
-        elif operator == '<>':
-            #condition = f"{field} NOT LIKE '%{word}%'"  # COLLATE MHL_SYSTEM_NOCASE")
-            condition = f"{field} NOT LIKE %s"  # COLLATE MHL_SYSTEM_NOCASE")
-            value = '%{word}%'
-        elif operator == '=':
-            #condition = f"{field} LIKE '{word}'"  # COLLATE MHL_SYSTEM_NOCASE")
-            condition = f"{field} = %s"  # COLLATE MHL_SYSTEM_NOCASE") #LIKE
-            value = f'{word}'
-        elif operator == '<=':
-            # condition = f"{field} LIKE '{word}'"  # COLLATE MHL_SYSTEM_NOCASE")
-            condition = f"{field} <= %s"  # COLLATE MHL_SYSTEM_NOCASE") #LIKE
-            value = f'{word}'
-        elif operator == '>=':
-            # condition = f"{field} LIKE '{word}'"  # COLLATE MHL_SYSTEM_NOCASE")
-            condition = f"{field} >= %s"  # COLLATE MHL_SYSTEM_NOCASE") #LIKE
-            value = f'{word}'
-        elif operator == 'NOT LIKE':
-            #condition = f"{field} NOT LIKE '%{word}%'"  # COLLATE MHL_SYSTEM_NOCASE")
-            condition = f"{field} NOT LIKE %s"  # COLLATE MHL_SYSTEM_NOCASE")
-            value = f'%{word}%'
-
-        return  condition, value
-
-
-    @staticmethod
-    def build_sql_where(words, lang, size_limit, rating_filter=None):
+    def build_sql_where_ft(query, lang, size_limit, rating_filter=None, series_id=0, author_id=0):
         """
         Создает SQL-условие WHERE на основе списка слов и их операторов.
         """
         conditions = []
         params = []
-        for word, operator in words:
-            condition, param = DatabaseBooks.make_condition("FullSearch", word, operator)
-            conditions.append(condition)
-            params.append(param)
+
+        # Пара одинаковых параметров в виде полного запроса для FullText поиска
+        params.extend([query] * 2)
 
         # Добавляем условие по языку, если задан в настройках пользователя
-        if lang and conditions:
+        if lang:
             conditions.append(f"SearchLang LIKE '{lang.upper()}'")
 
         # Добавляем ограничение по размеру книг, если задан в настройках пользователя
@@ -1034,23 +1117,54 @@ class DatabaseBooks():
                 conditions.append(rating_condition)
                 params.extend(rating_values)
 
+        # Добавляем условие по серии в поиске книг по сериям
+        if series_id != 0:
+            conditions.append(f"SeriesID = {series_id}")
+
+        # Добавляем условие по автору в поиске книг по авторам
+        if author_id != 0:
+            conditions.append(f"AuthorID = {author_id}")
+
         # в соновном sql вконце уже есть where, поэтому заменяем его на and
-        sql_where = "WHERE " + " AND ".join(conditions) if conditions else "WHERE 1=2"
+        sql_where = "WHERE " + " AND ".join(conditions) if conditions else ""
         return sql_where, params
+
+    # @staticmethod
+    # def build_sql_queries(sql_where, max_books, sort_order):
+    #     fields = Book._fields
+    #     processed_fields = [fields[0]] + [f"max({field})" for field in fields[1:]]
+    #     select_fields = ', '.join(processed_fields)
+    #
+    #     sql_query = f"""
+    #         SELECT {select_fields}
+    #         FROM ({SQL_QUERY_BOOKS} {sql_where} --LIMIT {max_books * 3}
+    #         )
+    #         GROUP BY {fields[0]}
+    #         ORDER BY {fields[-1]} {sort_order}
+    #         --LIMIT {max_books}
+    #     """
+    #     sql_query_cnt = f"""
+    #         SELECT COUNT(*)
+    #         FROM (SELECT {select_fields} FROM ({SQL_QUERY_BOOKS} {sql_where}) GROUP BY {fields[0]})
+    #     """
+    #     return sql_query, sql_query_cnt
 
 
     @staticmethod
-    def build_sql_queries(sql_where, max_books, sort_order):
+    def build_sql_queries_ft(sql_where, sort_order='desc'):
         fields = Book._fields
         processed_fields = [fields[0]] + [f"max({field})" for field in fields[1:]]
         select_fields = ', '.join(processed_fields)
 
         sql_query = f"""
             SELECT {select_fields} 
-            FROM ( {SQL_QUERY_BOOKS} {sql_where} ) as subquery
+            FROM ( {SQL_QUERY_BOOKS} {sql_where} 
+                -- ORDER BY relevance DESC, FileName {sort_order}
+                ) as subquery
             GROUP BY {fields[0]}
-            ORDER BY {fields[-1]} {sort_order}
-            -- LIMIT {max_books}
+            -- ORDER BY {fields[-1]} {sort_order}
+            ORDER BY relevance DESC, FileName {sort_order}
+            LIMIT {MAX_BOOKS_SEARCH}
         """
         sql_query_cnt = f"""
             SELECT COUNT(*) 
@@ -1059,72 +1173,72 @@ class DatabaseBooks():
         return sql_query, sql_query_cnt
 
 
-    @staticmethod
-    def build_sql_where_by_criteria(criteria_tuples, lang, size_limit, rating_filter=None):
-        # Базовая часть SQL-запроса
-        # в соновном sql вконце уже есть where, поэтому заменяем его на and
-        sql_where = "WHERE "
-
-        # Список для хранения условий
-        conditions = []
-        params = []
-        # Словарь для хранения OR условий
-        or_groups = {}
-
-        column_mapping = SEARCH_CRITERIA
-
-        # Формируем условия для каждого критерия
-        for criterion, value, operator, combiner in criteria_tuples:
-            # Преобразуем критерий в название столбца
-            column = column_mapping.get(criterion.lower())
-            if column:
-                # Преобразуем значение в верхний регистр и добавляем условие LIKE
-                #value_processed = value.upper()
-                #values = split_query_into_words(value_processed)
-                #condition = f"{column} LIKE '%{value_processed}%'"
-                if combiner == 'OR':
-                    key = f"{column}"
-                    if key not in or_groups:
-                        or_groups[key] = []
-                    or_groups[key].append((column, operator, value))
-                else:
-                    condition, param = DatabaseBooks.make_condition(column, value.upper(), operator, False)
-                    conditions.append(condition)
-                    params.append(param)
-
-        # Добавляем OR-условия
-        for key, or_conditions in or_groups.items():
-            or_parts = []
-            for column, operator, value in or_conditions:
-                condition, param = DatabaseBooks.make_condition(column, value.upper(), operator, False)
-                or_parts.append(condition)
-                params.append(param)
-            conditions.append(f"({' OR '.join(or_parts)})")
-
-        # Добавляем условие по языку, если задан в настройках пользователя
-        if lang and conditions:
-            conditions.append(f"SearchLang LIKE '{lang.upper()}'")
-
-        # Добавляем ограничение по размеру книг, если задан в настройках пользователя
-        if size_limit:
-            conditions.append(f"BookSizeCat = '{size_limit}'")
-
-        # ДОБАВЛЯЕМ ФИЛЬТРАЦИЮ ПО РЕЙТИНГУ
-        if rating_filter and rating_filter != '':
-            rating_values = [r.strip() for r in rating_filter.split(',') if r.strip()]
-            if rating_values:
-                rating_condition = f"LibRate IN ({', '.join(['%s'] * len(rating_values))})"
-                conditions.append(rating_condition)
-                params.extend(rating_values)
-
-        # Объединяем условия через AND
-        if conditions:
-            sql_where += " AND ".join(conditions)
-        else:
-            # Если условий нет, возвращаем запрос false
-            sql_where += "1=2"
-
-        return sql_where, params
+    # @staticmethod
+    # def build_sql_where_by_criteria(criteria_tuples, lang, size_limit, rating_filter=None):
+    #     # Базовая часть SQL-запроса
+    #     # в соновном sql вконце уже есть where, поэтому заменяем его на and
+    #     sql_where = "WHERE "
+    #
+    #     # Список для хранения условий
+    #     conditions = []
+    #     params = []
+    #     # Словарь для хранения OR условий
+    #     or_groups = {}
+    #
+    #     column_mapping = SEARCH_CRITERIA
+    #
+    #     # Формируем условия для каждого критерия
+    #     for criterion, value, operator, combiner in criteria_tuples:
+    #         # Преобразуем критерий в название столбца
+    #         column = column_mapping.get(criterion.lower())
+    #         if column:
+    #             # Преобразуем значение в верхний регистр и добавляем условие LIKE
+    #             #value_processed = value.upper()
+    #             #values = split_query_into_words(value_processed)
+    #             #condition = f"{column} LIKE '%{value_processed}%'"
+    #             if combiner == 'OR':
+    #                 key = f"{column}"
+    #                 if key not in or_groups:
+    #                     or_groups[key] = []
+    #                 or_groups[key].append((column, operator, value))
+    #             else:
+    #                 condition, param = DatabaseBooks.make_condition(column, value.upper(), operator, False)
+    #                 conditions.append(condition)
+    #                 params.append(param)
+    #
+    #     # Добавляем OR-условия
+    #     for key, or_conditions in or_groups.items():
+    #         or_parts = []
+    #         for column, operator, value in or_conditions:
+    #             condition, param = DatabaseBooks.make_condition(column, value.upper(), operator, False)
+    #             or_parts.append(condition)
+    #             params.append(param)
+    #         conditions.append(f"({' OR '.join(or_parts)})")
+    #
+    #     # Добавляем условие по языку, если задан в настройках пользователя
+    #     if lang and conditions:
+    #         conditions.append(f"SearchLang LIKE '{lang.upper()}'")
+    #
+    #     # Добавляем ограничение по размеру книг, если задан в настройках пользователя
+    #     if size_limit:
+    #         conditions.append(f"BookSizeCat = '{size_limit}'")
+    #
+    #     # ДОБАВЛЯЕМ ФИЛЬТРАЦИЮ ПО РЕЙТИНГУ
+    #     if rating_filter and rating_filter != '':
+    #         rating_values = [r.strip() for r in rating_filter.split(',') if r.strip()]
+    #         if rating_values:
+    #             rating_condition = f"LibRate IN ({', '.join(['%s'] * len(rating_values))})"
+    #             conditions.append(rating_condition)
+    #             params.extend(rating_values)
+    #
+    #     # Объединяем условия через AND
+    #     if conditions:
+    #         sql_where += " AND ".join(conditions)
+    #     else:
+    #         # Если условий нет, возвращаем запрос false
+    #         sql_where += "1=2"
+    #
+    #     return sql_where, params
 
 
 

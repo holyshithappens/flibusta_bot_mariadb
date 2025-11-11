@@ -92,8 +92,9 @@ def create_books_keyboard(page, pages_of_books, search_context=SEARCH_TYPE_BOOKS
                     text += f"/{str(book.SearchYear)}"
                 keyboard.append([InlineKeyboardButton(
                     text,
-                    # callback_data=f"send_file:{book.Folder}:{book.FileName}:{book.Ext}"
-                    callback_data = f"book_info:{book.Folder}:{book.FileName}:{book.Ext}"
+                    # # callback_data=f"send_file:{book.Folder}:{book.FileName}:{book.Ext}"
+                    # callback_data = f"book_info:{book.Folder}:{book.FileName}:{book.Ext}"
+                    callback_data = f"book_info:folder:{book.FileName}:fb2"
                 )])
 
             # Добавляем кнопки для навигации
@@ -130,11 +131,13 @@ def create_series_keyboard(page, pages_of_series):
 
         if series_in_page:
             # keyboard = []
-            for idx, (series_name, search_series, book_count) in enumerate(series_in_page):
+            # for idx, (series_name, search_series, book_count) in enumerate(series_in_page):
+            for idx, (series_name, series_id, book_count) in enumerate(series_in_page):
                 text = f"{series_name} ({book_count})"
                 keyboard.append([InlineKeyboardButton(
                     text,
-                    callback_data=f"show_series:{page}:{idx}"
+                    # callback_data=f"show_series:{page}:{idx}"
+                    callback_data = f"show_series:{series_id}"
                 )])
 
             # Добавляем кнопки для навигации
@@ -483,8 +486,9 @@ async def handle_search_books(update: Update, context: CallbackContext):
     context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_BOOKS  # Сохраняем контекст
 
     books, found_books_count = DB_BOOKS.search_books(
-        query_text, user_params.MaxBooks, user_params.Lang,
-        user_params.DateSortOrder, size_limit, rating_filter
+        query_text,
+        # user_params.MaxBooks,
+        user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter
     )
 
     # Проверяем, найдены ли книги
@@ -548,7 +552,9 @@ async def handle_search_series(update: Update, context: CallbackContext):
 
     # Ищем серии
     series, found_series_count = DB_BOOKS.search_series(
-        query_text, user_params.MaxBooks, user_params.Lang, size_limit, rating_filter
+        query_text,
+        # user_params.MaxBooks,
+        user_params.Lang, size_limit, rating_filter
     )
 
     if series or found_series_count > 0:
@@ -583,17 +589,19 @@ async def handle_search_series(update: Update, context: CallbackContext):
 async def handle_search_series_books(query, context, action, params):
     """Показывает книги выбранной серии"""
     try:
-        page_num = int(params[0])
-        series_idx = int(params[1])
+        # page_num = int(params[0])
+        # series_idx = int(params[1])
+        #
+        # # Получаем серию из контекста
+        # pages_of_series = context.user_data.get(PAGES_OF_SERIES)
+        # if not pages_of_series or page_num >= len(pages_of_series) or series_idx >= len(pages_of_series[page_num]):
+        #     await query.edit_message_text("❌ Ошибка: не удалось найти серию")
+        #     return
+        #
+        # series_name, search_series_name, book_count = pages_of_series[page_num][series_idx]
+        # context.user_data['current_series_name'] = series_name  # Сохраняем название серии
 
-        # Получаем серию из контекста
-        pages_of_series = context.user_data.get(PAGES_OF_SERIES)
-        if not pages_of_series or page_num >= len(pages_of_series) or series_idx >= len(pages_of_series[page_num]):
-            await query.edit_message_text("❌ Ошибка: не удалось найти серию")
-            return
-
-        series_name, search_series_name, book_count = pages_of_series[page_num][series_idx]
-        context.user_data['current_series_name'] = series_name  # Сохраняем название серии
+        series_id = int(params[0])
 
         user = query.from_user
         user_params = DB_SETTINGS.get_user_settings(user.id)
@@ -601,14 +609,17 @@ async def handle_search_series_books(query, context, action, params):
         rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
 
         # Ищем книги серии в комбинации с предыдущим запросом
-        query_text = f"{context.user_data['series_search_query']}, серия: '{search_series_name}'"
-        #query_text = f"серия: '{search_series_name}'"
+        # query_text = f"{context.user_data['series_search_query']}, серия: '{search_series_name}'"
+        query_text = f"{context.user_data['series_search_query']}"
 
         # print(f"DEBUG: query_text = {query_text}")
 
         books, found_books_count = DB_BOOKS.search_books(
-            query_text, user_params.MaxBooks, user_params.Lang,
-            user_params.DateSortOrder, size_limit, rating_filter
+            query_text,
+            # user_params.MaxBooks,
+            user_params.Lang,
+            user_params.DateSortOrder, size_limit, rating_filter,
+            series_id #Добавляем ограничение по выбранной серии
         )
 
         if books:
@@ -617,20 +628,21 @@ async def handle_search_series_books(query, context, action, params):
             context.user_data[PAGES_OF_BOOKS] = pages_of_books
             context.user_data[FOUND_BOOKS_COUNT] = found_books_count
             context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+            # Извлекаем имя серии из данных первой книги
+            series_name = books[0].SeriesTitle
 
             page = 0
             keyboard = create_books_keyboard(page, pages_of_books, SEARCH_TYPE_SERIES)
 
             # Добавляем кнопку возврата к сериям
             if keyboard:
-                # keyboard.append([InlineKeyboardButton("⬅ Назад к сериям", callback_data="back_to_series")])
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
-                # header_text = f"Книги серии '{series_name}' ({book_count}):"
                 header_text = form_header_books(page, user_params.MaxBooks, found_books_count, 'книг', series_name)
                 await query.edit_message_text(header_text, reply_markup=reply_markup)
         else:
-            await query.edit_message_text(f"Не найдено книг в серии '{series_name}'")
+            # await query.edit_message_text(f"Не найдено книг в серии '{series_name}'")
+            await query.edit_message_text(f"Не найдено книг в серии '{series_id}'")
 
     except (ValueError, IndexError) as e:
         print(f"Ошибка при обработке серии: {e}")
@@ -1074,33 +1086,30 @@ async def help_cmd(update: Update, context: CallbackContext):
     help_text = """
     <b>Помощь в поиске книг.</b>
 
-    📚 <i>Запрос может содержать слова из ФИО автора, названия книги, её жанра, серии и языка. В слове можно указывать символ % для подмены любого количества символов.</i> 
-    <u>Обычный поиск:</u>
+    <u>Простой поиск по любым словам:</u>
     ✏️ <code>Лев Толстой Война и мир</code>
-    ✏️ <code>фантастика звёзды</code>
-    ✏️ <code>harry potter fr</code>
-    ✏️ <code>математич%</code>
+    ✏️ <code>фантастика звёзды 2025</code>
+    ✏️ <code>harry potter</code>
+    ✏️ <code>Перельман математика</code>
 
-    <i>Есть вариант более быстрого поиска по отдельным критериям: названию книги, автору, жанру, серии, году издания. Комбинировать критерии можно, например, через запятую. В одном критерии можно комбинировать слова через символ |</i>
-    <u>Поиск по критериям:</u>
-    🔎 <code>название: =психология</code>
-    🔎 <code>название: монах|монаш|монастыр</code>
-    🔎 <code>автор: Лев Толстой, название: !Война, язык: ru</code>
-    🔎 <code>автор: Лукьяненко, жанр: !фантастика</code>
-    🔎 <code>серия: жизнь замечательных людей, год: -1991</code>
+    <u>Советы для эффективного поиска:</u>
+    🔍 <b>Несколько слов</b> - бот ищет книги, содержащие какие-либо из похожих слов
+    🔍 <b>Обязательное слово</b> - используйте + перед словом: <code>+жизнь +замечательных людей</code>
+    🔍 <b>Исключение слов</b> - используйте - перед словом: <code>+Распутин -Валентин</code>
+    🔍 <b>Части слов</b> - можно использовать *: <code>математич*</code>
+    
+    <u>Область поиска:</u>
+    📖 Поиск осуществляется по: <b>названию книги, авторам, жанрам, серии и году издания</b>
+    
+    <u>Ограничение выдачи:</u>
+    📊 Результаты поиска ограничены <b>2000 строками</b> для скорости работы
+    
+    <u>Доступные форматы выдачи:</u>
+    📚 <b>Обычный поиск</b> - список книг
+    👥 <b>По авторам</b> - группировка по авторам (в настройках)
+    📖 <b>По сериям</b> - группировка по сериям (в настройках)
 
-    <u>Поиск по году:</u>
-    🕰 <code>год: 1950</code> - книги 1950 года издания
-    🕰 <code>год: 1924-1953</code> - книги с 1924 по 1953 годы издания
-    🕰 <code>год: -1991</code> - книги до 1991 года издания включительно
-    🕰 <code>год: 1991-</code> - книги 1991 года издания и новее
-
-    <u>Новые критерии:</u>
-    ⭐️ <code>рейтинг: 45</code> - фильтр по рейтингу (0-5 в любом порядке)
-        
-    <u>Управляющие символы в начале слова:</u>
-    🚦 <code>!слово</code> - исключить слово, например, <code>Распутин !Валентин</code> - ищем слово Распутин и исключаем слово Валентин
-    🚦 <code>=слово</code> - точное соответствие критерию, например, <code>название: =монах</code>
+    💡 <i>Поиск стал значительно быстрее благодаря полнотекстовой индексации!</i>
     """
     # <u>Новые критерии:</u>
     # 🏙️ <code>город: Красноярск</code> - поиск по городу издания
@@ -1671,19 +1680,20 @@ async def handle_book_reviews(query, context, action, params):
 
 # ===== ПОИСК ПО АВТОРАМ =====
 
-# Добавляем функцию создания клавиатуры для авторов
 def create_authors_keyboard(page, pages_of_authors):
+    """ создание клавиатуры для авторов """
     keyboard = []
 
     if pages_of_authors:
         authors_in_page = pages_of_authors[page]
 
         if authors_in_page:
-            for idx, (author_name, search_author, book_count, author_id) in enumerate(authors_in_page):
+            for idx, (author_name, book_count, author_id) in enumerate(authors_in_page):
                 text = f"{author_name} ({book_count})"
                 keyboard.append([InlineKeyboardButton(
                     text,
-                    callback_data=f"show_author:{page}:{idx}"
+                    # callback_data=f"show_author:{page}:{idx}"
+                    callback_data = f"show_author:{author_id}"
                 )])
 
             # Добавляем кнопки для навигации
@@ -1700,7 +1710,7 @@ def create_authors_keyboard(page, pages_of_authors):
 
     return keyboard
 
-# Добавляем обработчик поиска по авторам
+
 async def handle_search_authors(update: Update, context: CallbackContext):
     """Обрабатывает текстовые сообщения (поиск авторов)"""
     is_edited = update.edited_message is not None
@@ -1734,7 +1744,9 @@ async def handle_search_authors(update: Update, context: CallbackContext):
 
     # Ищем авторов
     authors, found_authors_count = DB_BOOKS.search_authors(
-        query_text, user_params.MaxBooks, user_params.Lang, size_limit, rating_filter
+        query_text,
+        # user_params.MaxBooks,
+        user_params.Lang, size_limit, rating_filter
     )
 
     if authors or found_authors_count > 0:
@@ -1765,21 +1777,23 @@ async def handle_search_authors(update: Update, context: CallbackContext):
 
     logger.log_user_action(user, "searched for authors", f"{query_text}; count:{found_authors_count}")
 
-# Добавляем обработчик показа книг автора
+
 async def handle_search_author_books(query, context, action, params):
     """Показывает книги выбранного автора"""
     try:
-        page_num = int(params[0])
-        author_idx = int(params[1])
+        # page_num = int(params[0])
+        # author_idx = int(params[1])
+        #
+        # # Получаем автора из контекста
+        # pages_of_authors = context.user_data.get(PAGES_OF_AUTHORS)
+        # if not pages_of_authors or page_num >= len(pages_of_authors) or author_idx >= len(pages_of_authors[page_num]):
+        #     await query.edit_message_text("❌ Ошибка: не удалось найти автора")
+        #     return
+        #
+        # author_name, search_author_name, book_count, author_id = pages_of_authors[page_num][author_idx]
+        # context.user_data['current_author_name'] = author_name  # Сохраняем имя автора
 
-        # Получаем автора из контекста
-        pages_of_authors = context.user_data.get(PAGES_OF_AUTHORS)
-        if not pages_of_authors or page_num >= len(pages_of_authors) or author_idx >= len(pages_of_authors[page_num]):
-            await query.edit_message_text("❌ Ошибка: не удалось найти автора")
-            return
-
-        author_name, search_author_name, book_count, author_id = pages_of_authors[page_num][author_idx]
-        context.user_data['current_author_name'] = author_name  # Сохраняем имя автора
+        author_id = int(params[0])
 
         user = query.from_user
         user_params = DB_SETTINGS.get_user_settings(user.id)
@@ -1787,11 +1801,15 @@ async def handle_search_author_books(query, context, action, params):
         rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
 
         # Ищем книги автора в комбинации с предыдущим запросом
-        query_text = f"{context.user_data['authors_search_query']}, автор: {search_author_name}"
+        # query_text = f"{context.user_data['authors_search_query']}, автор: {search_author_name}"
+        query_text = f"{context.user_data['authors_search_query']}"
 
         books, found_books_count = DB_BOOKS.search_books(
-            query_text, user_params.MaxBooks, user_params.Lang,
-            user_params.DateSortOrder, size_limit, rating_filter
+            query_text,
+            # user_params.MaxBooks,
+            user_params.Lang,
+            user_params.DateSortOrder, size_limit, rating_filter,
+            author_id = author_id
         )
 
         if books:
@@ -1800,6 +1818,8 @@ async def handle_search_author_books(query, context, action, params):
             context.user_data[PAGES_OF_BOOKS] = pages_of_books
             context.user_data[FOUND_BOOKS_COUNT] = found_books_count
             context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+            # Имя автора из первой книги
+            author_name = f"{books[0].LastName} {books[0].FirstName} {books[0].MiddleName}"
 
             page = 0
             keyboard = create_books_keyboard(page, pages_of_books, SEARCH_TYPE_AUTHORS)
@@ -1810,7 +1830,8 @@ async def handle_search_author_books(query, context, action, params):
                 header_text = form_header_books(page, user_params.MaxBooks, found_books_count, 'книг', None, author_name)
                 await query.edit_message_text(header_text, reply_markup=reply_markup)
         else:
-            await query.edit_message_text(f"Не найдено книг автора '{author_name}'")
+            # await query.edit_message_text(f"Не найдено книг автора '{author_name}'")
+            await query.edit_message_text(f"Не найдено книг автора '{author_id}'")
 
         logger.log_user_action(user, "searched for books", f"{query_text}; count:{found_books_count}")
 
@@ -1818,7 +1839,7 @@ async def handle_search_author_books(query, context, action, params):
         print(f"Ошибка при обработке автора: {e}")
         await query.edit_message_text("❌ Ошибка при загрузке автора")
 
-# Добавляем обработчик возврата к авторам
+
 async def handle_back_to_authors(query, context, action, params):
     """Возвращает к результатам поиска авторов"""
     try:
@@ -1843,8 +1864,9 @@ async def handle_back_to_authors(query, context, action, params):
         print(f"Ошибка при возврате к авторам: {e}")
         await query.edit_message_text("❌ Ошибка при возврате к результатам поиска")
 
-# Обновляем обработчик смены страниц для авторов
+
 async def handle_authors_page_change(query, context, action, params):
+    """ Обновляем обработчик смены страниц для авторов """
     try:
         # Проверяем, что данные авторов еще существуют
         if 'PAGES_OF_AUTHORS' not in context.user_data or not context.user_data['PAGES_OF_AUTHORS']:

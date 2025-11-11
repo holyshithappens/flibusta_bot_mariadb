@@ -18,7 +18,8 @@ BACKUP_DB_FILES = [
 BACKUP_LOG_PATTERN = f"{FLIBUSTA_LOG_PATH}/*log*"
 
 # Максимальное количество книг для поиска, это же значение задано по умолчанию для поля UserSettings.MaxBooks
-MAX_BOOKS_SEARCH = 20
+MAX_BOOKS_SEARCH = 2000
+
 #WEB
 FLIBUSTA_BASE_URL = "https://www.flibusta.is"
 DEFAULT_BOOK_FORMAT = 'fb2'  # По умолчанию формат не установлен
