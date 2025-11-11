@@ -1353,6 +1353,16 @@ async def handle_group_callback(query, context, action, params, user):
         await handle_send_file(query, context, action, params, user)
     elif action.startswith('page_'):
         await handle_group_page_change(query, context, action, params, user, search_context_key)
+    elif action == 'book_info':
+        await handle_book_info(query, context, action, params)
+    elif action == 'book_details':
+        await handle_book_details(query, context, action, params)
+    elif action == 'author_info':
+        await handle_author_info(query, context, action, params)
+    elif action == 'book_reviews':
+        await handle_book_reviews(query, context, action, params)
+    elif action == 'close_info':
+        await handle_close_info(query, context, action, params)
     else:
         await query.edit_message_text("❌ Это действие недоступно в группе")
 
