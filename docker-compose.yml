@@ -3,7 +3,7 @@
 
 services:
   mariadb:
-    image: mariadb
+    image: mariadb:12.0
     container_name: flibusta-db
     restart: unless-stopped
     environment:
