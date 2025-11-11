@@ -1348,21 +1348,25 @@ async def handle_group_callback(query, context, action, params, user):
         await query.edit_message_text("❌ Сессия поиска истекла. Начните поиск заново.")
         return
 
+    action_handlers = {
+        'book_info': handle_book_info,
+        'book_details': handle_book_details,
+        'author_info': handle_author_info,
+        'book_reviews': handle_book_reviews,
+        'close_info': handle_close_info,
+    }
+
     # Обрабатываем действия
+    if action.startswith('page_'):
+        await handle_group_page_change(query, context, action, params, user, search_context_key)
+
     if action == 'send_file':
         await handle_send_file(query, context, action, params, user)
-    elif action.startswith('page_'):
-        await handle_group_page_change(query, context, action, params, user, search_context_key)
-    elif action == 'book_info':
-        await handle_book_info(query, context, action, params)
-    elif action == 'book_details':
-        await handle_book_details(query, context, action, params)
-    elif action == 'author_info':
-        await handle_author_info(query, context, action, params)
-    elif action == 'book_reviews':
-        await handle_book_reviews(query, context, action, params)
-    elif action == 'close_info':
-        await handle_close_info(query, context, action, params)
+
+    # Прямой поиск обработчика в словаре
+    if action in action_handlers:
+        handler = action_handlers[action]
+        await handler(query, context, action, params)
     else:
         await query.edit_message_text("❌ Это действие недоступно в группе")
 
