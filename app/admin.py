@@ -219,42 +219,6 @@ async def admin_whoami(update: Update, context: CallbackContext):
         )
 
 
-# async def admin_stats(update: Update, context: CallbackContext):
-#     """Статистика системы"""
-#     if not is_admin(update.effective_user.id):
-#         await update.message.reply_text("❌ Недостаточно прав")
-#         return
-#
-#     # Очищаем просроченные сессии
-#     cleaned = cleanup_expired_sessions()
-#     if cleaned > 0:
-#         print(f"Очищено {cleaned} просроченных админских сессий")
-#
-#     stats = DB_SETTINGS.get_user_stats()
-#
-#     # Добавляем информацию о текущих админских сессиях
-#     active_admins = len([uid for uid in admin_sessions if admin_sessions[uid]["admin_until"] > time.time()])
-#
-#     stats_text = f"""
-# 📊 <b>Статистика системы</b>
-#
-# 👥 <b>Пользователи:</b>
-# • Всего: {stats['total_users']}
-# • Заблокированы: {stats['blocked_users']}
-# • Активные: {stats['active_users']}
-# • Активные админы: {active_admins}
-#
-# 🕒 <b>Админские сессии:</b>
-# """
-#
-#     for user_id, session in admin_sessions.items():
-#         if session["admin_until"] > time.time():
-#             expires = time.strftime('%H:%M:%S', time.localtime(session["admin_until"]))
-#             stats_text += f"• ID {user_id}: до {expires}\n"
-#
-#     await update.message.reply_text(stats_text, parse_mode=ParseMode.HTML)
-
-
 async def admin_broadcast(update: Update, context: CallbackContext):
     """Массовая рассылка"""
     if not is_admin(update.effective_user.id):
@@ -739,3 +703,40 @@ async def handle_admin_callback(update: Update, context: CallbackContext):
     except Exception as e:
         print(f"Error in admin callback: {e}")
         await query.edit_message_text("❌ Произошла ошибка при обработке запроса")
+
+
+
+# async def admin_stats(update: Update, context: CallbackContext):
+#     """Статистика системы"""
+#     if not is_admin(update.effective_user.id):
+#         await update.message.reply_text("❌ Недостаточно прав")
+#         return
+#
+#     # Очищаем просроченные сессии
+#     cleaned = cleanup_expired_sessions()
+#     if cleaned > 0:
+#         print(f"Очищено {cleaned} просроченных админских сессий")
+#
+#     stats = DB_SETTINGS.get_user_stats()
+#
+#     # Добавляем информацию о текущих админских сессиях
+#     active_admins = len([uid for uid in admin_sessions if admin_sessions[uid]["admin_until"] > time.time()])
+#
+#     stats_text = f"""
+# 📊 <b>Статистика системы</b>
+#
+# 👥 <b>Пользователи:</b>
+# • Всего: {stats['total_users']}
+# • Заблокированы: {stats['blocked_users']}
+# • Активные: {stats['active_users']}
+# • Активные админы: {active_admins}
+#
+# 🕒 <b>Админские сессии:</b>
+# """
+#
+#     for user_id, session in admin_sessions.items():
+#         if session["admin_until"] > time.time():
+#             expires = time.strftime('%H:%M:%S', time.localtime(session["admin_until"]))
+#             stats_text += f"• ID {user_id}: до {expires}\n"
+#
+#     await update.message.reply_text(stats_text, parse_mode=ParseMode.HTML)

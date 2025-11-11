@@ -24,7 +24,7 @@ services:
       - --query-cache-size=0 #(совпадает)
       - --tmp-table-size=16M #(было 16M)
       - --max-heap-table-size=16M #(было 16M)
-      - --table-open-cache=400 #(было 2000)
+      - --table-open-cache=1000 #(было 2000)
       - --thread-cache-size=8 #(было 0) - определяется автоматически
       - --innodb-log-file-size=32M #(было 48M)
       - --performance-schema=ON #(было ON)

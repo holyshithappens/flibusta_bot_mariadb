@@ -1,7 +1,5 @@
 from datetime import datetime
 import os
-# import zipfile
-# from io import BytesIO
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, KeyboardButton, ReplyKeyboardMarkup
 from telegram.constants import ParseMode
@@ -16,7 +14,7 @@ from constants import FLIBUSTA_BASE_URL, DEFAULT_BOOK_FORMAT, \
 from health import log_stats
 from utils import format_size, get_platform_recommendations, download_book_with_filename, upload_to_tmpfiles, \
     is_message_for_bot, extract_clean_query, get_latest_news, format_book_reviews, format_author_info, \
-    format_book_details, format_book_info
+    format_book_details, format_book_info, form_header_books
 from logger import logger
 
 
@@ -60,21 +58,6 @@ def create_back_button() -> list:
     return [[InlineKeyboardButton("⬅ Назад в настройки", callback_data="back_to_settings")]]
 
 
-def form_header_books(page, max_books, found_count, search_type='книг', series_name=None, author_name=None):
-    # return f"Показываю с {max_books * page + 1} по {min(max_books * (page + 1), found_count)} из {found_count} найденных {search_type}:"
-    start = max_books * page + 1
-    end = min(max_books * (page + 1), found_count)
-
-    header = f"Показываю с {start} по {end} из {found_count} найденных {search_type}"
-
-    if series_name:
-        header += f" в серии '{series_name}'"
-    if author_name:
-        header += f" автора '{author_name}'"
-
-    return header
-
-
 def create_books_keyboard(page, pages_of_books, search_context=SEARCH_TYPE_BOOKS):
     # reply_markup = None
     keyboard = []
@@ -83,7 +66,6 @@ def create_books_keyboard(page, pages_of_books, search_context=SEARCH_TYPE_BOOKS
         books_in_page = pages_of_books[page]
 
         if books_in_page:
-            # keyboard = []
             for book in books_in_page:
                 # ДОБАВЛЯЕМ ЭМОДЗИ РЕЙТИНГА
                 rating_emoji = get_rating_emoji(book.LibRate)
@@ -92,8 +74,6 @@ def create_books_keyboard(page, pages_of_books, search_context=SEARCH_TYPE_BOOKS
                     text += f"/{str(book.SearchYear)}"
                 keyboard.append([InlineKeyboardButton(
                     text,
-                    # # callback_data=f"send_file:{book.Folder}:{book.FileName}:{book.Ext}"
-                    # callback_data = f"book_info:{book.Folder}:{book.FileName}:{book.Ext}"
                     callback_data = f"book_info:folder:{book.FileName}:fb2"
                 )])
 
@@ -116,27 +96,21 @@ def create_books_keyboard(page, pages_of_books, search_context=SEARCH_TYPE_BOOKS
             elif search_context == SEARCH_TYPE_AUTHORS:
                 keyboard.append([InlineKeyboardButton("⤴️ Назад к авторам", callback_data="back_to_authors")])
 
-            # reply_markup = InlineKeyboardMarkup(keyboard)
-
-    # return reply_markup
     return keyboard
 
 
 def create_series_keyboard(page, pages_of_series):
-    # reply_markup = None
+    """ Создание клавиатуры с кнопками из найденных серий книг """
     keyboard = []
 
     if pages_of_series:
         series_in_page = pages_of_series[page]
 
         if series_in_page:
-            # keyboard = []
-            # for idx, (series_name, search_series, book_count) in enumerate(series_in_page):
             for idx, (series_name, series_id, book_count) in enumerate(series_in_page):
                 text = f"{series_name} ({book_count})"
                 keyboard.append([InlineKeyboardButton(
                     text,
-                    # callback_data=f"show_series:{page}:{idx}"
                     callback_data = f"show_series:{series_id}"
                 )])
 
@@ -151,8 +125,6 @@ def create_series_keyboard(page, pages_of_series):
                     InlineKeyboardButton("В конец ⬇️️️", callback_data=f"series_page_{len(pages_of_series) - 1}"))
             if navigation_buttons:
                 keyboard.append(navigation_buttons)
-
-            # reply_markup = InlineKeyboardMarkup(keyboard)
 
     return keyboard
 
@@ -179,9 +151,6 @@ async def process_book_download(query, book_id, book_format, file_name, file_ext
         public_filename = original_filename if original_filename else f"{book_id}.{book_format}"
 
         if book_data:
-            # if book_format == DEFAULT_BOOK_FORMAT:
-            #     await extract_and_send_metadata(book_data, query)
-
             await query.message.reply_document(
                 document=book_data,
                 filename=public_filename,
@@ -200,7 +169,6 @@ async def process_book_download(query, book_id, book_format, file_name, file_ext
     except TimedOut:
         await handle_timeout_error(processing_msg, book_data, file_name, file_ext, query)
     except Exception as e:
-        #await handle_download_error(processing_msg, url, e, query)
         """Обрабатывает ошибку загрузки"""
         print(f"Общая ошибка при отправке книги: {e}")
         await processing_msg.edit_text(
@@ -209,28 +177,6 @@ async def process_book_download(query, book_id, book_format, file_name, file_ext
         logger.log_user_action(query.from_user.id, "error sending book direct", url)
 
     return None
-
-
-# async def extract_and_send_metadata(book_data, query):
-#     """Извлекает и отправляет метаданные книги"""
-#     with zipfile.ZipFile(BytesIO(book_data), 'r') as zip_file:
-#         for file_info in zip_file.infolist():
-#             file_data = zip_file.read(file_info.filename)
-#             file_io = BytesIO(file_data)
-#             file_io.seek(0)
-#
-#             cover_bytes = extract_cover_from_fb2(file_io)
-#             metadata = extract_metadata_from_fb2(file_io)
-#             caption = format_metadata_message(metadata)
-#
-#             if cover_bytes:
-#                 await query.message.reply_photo(
-#                     photo=cover_bytes,
-#                     caption=caption or "",
-#                     disable_notification=True
-#                 )
-#             elif caption:
-#                 await query.message.reply_text(caption, disable_notification=True)
 
 
 async def handle_timeout_error(processing_msg, book_data, file_name, file_ext, query):
@@ -264,18 +210,11 @@ async def handle_timeout_error(processing_msg, book_data, file_name, file_ext, q
         logger.log_user_action(query.from_user.id, "error sending book cloud", f"{file_name}{file_ext}")
 
 
-# def update_user_activity(context: CallbackContext, user_id: int=0):
-#     """Обновляет время последней активности пользователя в user_data"""
-#     if hasattr(context, 'user_data'):
-#         context.user_data['last_activity'] = datetime.now()
-
-
 # ===== ОСНОВНЫЕ ОБРАБОТЧИКИ КОМАНД =====
 
 async def start_cmd(update: Update, context: CallbackContext):
     """Обработка команды /start с deep linking"""
     user = update.effective_user
-    # update_user_activity(context, user.id)
 
     # Сохраняем настройки пользователя
     user_params = DB_SETTINGS.get_user_settings(user.id)
@@ -333,11 +272,8 @@ async def genres_cmd(update: Update, context: CallbackContext):
         # print(f"Error in genres_cmd: {e}")
         await update.message.reply_text("❌ Ошибка при загрузке жанров")
 
-    user = update.message.from_user
-    # update_user_activity(context, user.id)
-
     await log_stats(context)
-
+    user = update.message.from_user
     logger.log_user_action(user, "viewed parent genres")
 
 
@@ -351,25 +287,14 @@ async def langs_cmd(update: Update, context: CallbackContext):
         disable_notification=True
     )
 
-    user = update.message.from_user
-    # update_user_activity(context, user.id)
-
     await log_stats(context)
-
+    user = update.message.from_user
     logger.log_user_action(user, "viewed langs of books")
 
 
 def create_settings_menu():
     """Создает главное меню настроек"""
-    settings = [
-        ("Ограничение максимального вывода", SETTING_MAX_BOOKS),
-        ("Язык поиска книг", SETTING_LANG_SEARCH),
-        ("Сортировку выдачи", SETTING_SORT_ORDER),
-        ("Ограничение на размер книг", SETTING_SIZE_LIMIT),
-        ("Формат скачивания книг", SETTING_BOOK_FORMAT),
-        ("Тип поиска", SETTING_SEARCH_TYPE),
-        ("Фильтр по рейтингу книг", SETTING_RATING_FILTER),
-    ]
+    settings = [(text, setting_type) for setting_type, text in SETTING_TITLES.items()]
 
     keyboard = [[InlineKeyboardButton(text, callback_data=f"set_{key}")] for text, key in settings]
     return InlineKeyboardMarkup(keyboard)
@@ -386,7 +311,6 @@ async def show_settings_menu(update_or_query, context, from_callback=False):
         await update_or_query.message.reply_text("Настроить:", reply_markup=reply_markup)
         user = update_or_query.message.from_user
 
-    # update_user_activity(context, user.id)
     logger.log_user_action(user, "showed settings menu")
 
 
@@ -427,7 +351,6 @@ async def settings_cmd(update: Update, context: CallbackContext):
     await show_settings_menu(update, context, from_callback=False)
 
 
-
 async def handle_message(update: Update, context: CallbackContext):
     """Обрабатывает текстовые сообщения (поиск книг или серий)"""
     try:
@@ -448,7 +371,6 @@ async def handle_message(update: Update, context: CallbackContext):
     except Exception as e:
         print(f"Error in handle_message: {e}")
         await update.message.reply_text("❌ Произошла ошибка при обработке запроса")
-        # logger.logger.error(f"Error in handle_message: {e}", exc_info=True)
 
     await log_stats(context)
 
@@ -486,9 +408,7 @@ async def handle_search_books(update: Update, context: CallbackContext):
     context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_BOOKS  # Сохраняем контекст
 
     books, found_books_count = DB_BOOKS.search_books(
-        query_text,
-        # user_params.MaxBooks,
-        user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter
+        query_text, user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter
     )
 
     # Проверяем, найдены ли книги
@@ -552,9 +472,7 @@ async def handle_search_series(update: Update, context: CallbackContext):
 
     # Ищем серии
     series, found_series_count = DB_BOOKS.search_series(
-        query_text,
-        # user_params.MaxBooks,
-        user_params.Lang, size_limit, rating_filter
+        query_text, user_params.Lang, size_limit, rating_filter
     )
 
     if series or found_series_count > 0:
@@ -589,18 +507,6 @@ async def handle_search_series(update: Update, context: CallbackContext):
 async def handle_search_series_books(query, context, action, params):
     """Показывает книги выбранной серии"""
     try:
-        # page_num = int(params[0])
-        # series_idx = int(params[1])
-        #
-        # # Получаем серию из контекста
-        # pages_of_series = context.user_data.get(PAGES_OF_SERIES)
-        # if not pages_of_series or page_num >= len(pages_of_series) or series_idx >= len(pages_of_series[page_num]):
-        #     await query.edit_message_text("❌ Ошибка: не удалось найти серию")
-        #     return
-        #
-        # series_name, search_series_name, book_count = pages_of_series[page_num][series_idx]
-        # context.user_data['current_series_name'] = series_name  # Сохраняем название серии
-
         series_id = int(params[0])
 
         user = query.from_user
@@ -609,16 +515,12 @@ async def handle_search_series_books(query, context, action, params):
         rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
 
         # Ищем книги серии в комбинации с предыдущим запросом
-        # query_text = f"{context.user_data['series_search_query']}, серия: '{search_series_name}'"
         query_text = f"{context.user_data['series_search_query']}"
 
         # print(f"DEBUG: query_text = {query_text}")
 
         books, found_books_count = DB_BOOKS.search_books(
-            query_text,
-            # user_params.MaxBooks,
-            user_params.Lang,
-            user_params.DateSortOrder, size_limit, rating_filter,
+            query_text, user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter,
             series_id #Добавляем ограничение по выбранной серии
         )
 
@@ -703,7 +605,6 @@ async def button_callback(update: Update, context: CallbackContext):
     """УНИВЕРСАЛЬНЫЙ обработчик callback-запросов"""
     query = update.callback_query
     user = query.from_user
-    # update_user_activity(context, user.id)
     user_params = DB_SETTINGS.get_user_settings(user.id)
     context.user_data[USER_PARAMS] = user_params
 
@@ -825,7 +726,6 @@ async def handle_show_genres(query, context, action, params):
         if genres:
             genres_html = f"<b>{parent_genre}</b>\n\n"
             for genre,count in genres:
-               #genres_html += f"<code>{genre}</code>\n"
                count_text = f" ({count:,})".replace(",", " ")  if count else " (0)"
                genres_html += f"<code>{genre}</code>{count_text}\n"
             await query.message.reply_text(genres_html, parse_mode=ParseMode.HTML)
@@ -839,7 +739,6 @@ async def handle_show_genres(query, context, action, params):
         await query.message.reply_text("❌ Ошибка при загрузке жанров")
 
     await log_stats(context)
-
 
 
 # ===== ОБНОВЛЕННЫЕ ОБРАБОТЧИКИ НАСТРОЕК =====
@@ -1046,7 +945,6 @@ async def handle_set_actions(query, context, action, params):
     except BadRequest as e:
         if "Message is not modified" not in str(e):
             raise e
-    # else: игнорируем ошибку "не изменено"
 
     # Логируем действие
     logger.log_user_action(user, f"set {setting_type} to {new_value}")
@@ -1111,13 +1009,10 @@ async def help_cmd(update: Update, context: CallbackContext):
 
     💡 <i>Поиск стал значительно быстрее благодаря полнотекстовой индексации!</i>
     """
-    # <u>Новые критерии:</u>
-    # 🏙️ <code>город: Красноярск</code> - поиск по городу издания
-    # 🏢 <code>издательство: Наука</code> - поиск по издательству
 
     await update.message.reply_text(help_text, parse_mode='HTML', disable_web_page_preview=True)
+
     user = update.message.from_user
-    # update_user_activity(context, user.id)
     logger.log_user_action(user, "showed help")
 
 
@@ -1126,7 +1021,6 @@ async def about_cmd(update: Update, context: CallbackContext):
     try:
         stats = DB_BOOKS.get_library_stats()
         last_update = stats['last_update']
-        #last_update_str = last_update.strftime('%d.%m.%Y') if hasattr(last_update, 'strftime') else "неизвестно"
         last_update_str = last_update
 
         #print(f"DEBUG: {last_update}, {last_update_str}")
@@ -1171,7 +1065,6 @@ async def about_cmd(update: Update, context: CallbackContext):
             disable_web_page_preview=True
         )
 
-
     except Exception as e:
         print(f"Error in about command: {e}")
         await update.message.reply_text(
@@ -1182,7 +1075,6 @@ async def about_cmd(update: Update, context: CallbackContext):
     await log_stats(context)
 
     user = update.message.from_user
-    # update_user_activity(context, user.id)
     logger.log_user_action(user, "viewed about")
 
 
@@ -1218,7 +1110,6 @@ async def news_cmd(update: Update, context: CallbackContext):
 
         # Логируем действие
         user = update.message.from_user
-        # update_user_activity(context, user.id)
         logger.log_user_action(user, "viewed news")
 
     except Exception as e:
@@ -1231,13 +1122,11 @@ async def news_cmd(update: Update, context: CallbackContext):
 
 # ===== РЕЙТИНГ КНИГ =====
 
-# Добавим функцию для получения эмодзи рейтинга
 def get_rating_emoji(rating):
     """Возвращает эмодзи для рейтинга"""
     return BOOK_RATINGS.get(rating, ("⚪️", ""))[0]
 
 
-# Добавим обработчик для настройки рейтинга
 async def handle_set_rating_filter(query, context, action, params):
     """Показывает настройки фильтра по рейтингу"""
     current_value = context.user_data.get(SETTING_RATING_FILTER, '')
@@ -1252,14 +1141,13 @@ async def handle_set_rating_filter(query, context, action, params):
     logger.log_user_action(query.from_user, "showed rating filter setting")
 
 
-# Создадим специальную клавиатуру для фильтра рейтинга (множественный выбор)
 def create_rating_filter_keyboard(current_ratings, options):
     """Создает клавиатуру для множественного выбора рейтингов"""
     keyboard = []
 
     for value, display_text in options:
         is_selected = str(value) in current_ratings
-        emoji = "✅" if is_selected else ""
+        emoji = "✔" if is_selected else ""
         button_text = f"{emoji} {display_text}"
 
         keyboard.append([InlineKeyboardButton(
@@ -1276,7 +1164,6 @@ def create_rating_filter_keyboard(current_ratings, options):
     return InlineKeyboardMarkup(keyboard)
 
 
-# Добавим функции обработки рейтингов
 async def handle_toggle_rating(query, context, action, params):
     """Обрабатывает переключение рейтинга в фильтре"""
     rating_value = action.removeprefix('toggle_rating_')
@@ -1389,8 +1276,7 @@ async def handle_group_search(update: Update, context: CallbackContext):
 
         # Выполняем поиск книг
         books, found_books_count = DB_BOOKS.search_books(
-            clean_query_text, user_params.MaxBooks, user_params.Lang,
-            user_params.DateSortOrder, '', ''
+            clean_query_text, user_params.Lang, user_params.DateSortOrder, '', ''
         )
 
         # Удаляем сообщение "Ищу книги..."
@@ -1499,7 +1385,7 @@ async def handle_group_page_change(query, context, action, params, user, search_
         found_books_count = search_context.get(FOUND_BOOKS_COUNT)
         user_params = search_context.get(USER_PARAMS)
 
-        user_name = (user.first_name if user.first_name else "") #+ (f" @{user.username}" if user.username else "")
+        user_name = (user.first_name if user.first_name else "")
         header_text = f"📚 Результаты поиска" + (f" для {user_name}" if user_name else "") + ":\n\n"
         header_text += form_header_books(page, user_params.MaxBooks, found_books_count)
 
@@ -1526,6 +1412,7 @@ async def handle_book_info(query, context, action, params):
 
         # print(f"DEBUG: book_info = {book_info}")
         # print(f"DEBUG: len = {len(message_text)} message_text = {message_text}")
+
         # Отправляем сообщение без кнопок сначала
         # Если есть обложка, отправляем фото
         if book_info.get('cover_url'):
@@ -1541,7 +1428,9 @@ async def handle_book_info(query, context, action, params):
             )
 
         author_ids = await DB_BOOKS.get_authors_id(book_id)
+
         # print(f"DEBUG: authors_ids = {author_ids}")
+
         # Создаем клавиатуру с дополнительными кнопками
         keyboard = [
             [InlineKeyboardButton("📥 Скачать", callback_data=f"send_file:{file_path}:{file_name}:{file_ext}")],
@@ -1551,7 +1440,6 @@ async def handle_book_info(query, context, action, params):
             InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")],
         ]
 
-        # await query.edit_message_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         reply_markup = InlineKeyboardMarkup(keyboard)
         await info_message.edit_reply_markup(reply_markup)
 
@@ -1581,6 +1469,7 @@ async def handle_book_details(query, context, action, params):
     try:
         book_id = params[0]
         book_details = await DB_BOOKS.get_book_details(book_id)
+
         # print(f"DEBUG: book_details = {book_details}")
 
         if not book_details:
@@ -1619,27 +1508,17 @@ async def handle_author_info(query: CallbackQuery, context: CallbackContext, act
 
         message_text = format_author_info(author_info)
 
-        # # Создаем reply-клавиатуру для поиска книг автора
-        # reply_keyboard = [[KeyboardButton(f"автор: {author_info['name']}")]]
-        # reply_markup_reply = ReplyKeyboardMarkup(
-        #     reply_keyboard,
-        #     resize_keyboard=True,
-        #     one_time_keyboard=True
-        # )
-
-        # Если есть фото автора, отправляем фото
+        # Если есть фото автора, отправляем фото с укороченным текстом об авторе из-за ограничений
         if author_info.get('photo_url'):
             info_message = await query.message.reply_photo(
                 photo=author_info['photo_url'],
-                caption=message_text,
+                caption=message_text[:1000] + ("..." if len(message_text) > 1000 else ""),
                 parse_mode=ParseMode.HTML
-                # reply_markup=reply_markup_reply
             )
         else:
             info_message = await query.message.reply_text(
                 message_text,
                 parse_mode=ParseMode.HTML
-                # reply_markup=reply_markup_reply
             )
 
         # Добавляем кнопку закрытия с ID сообщения
@@ -1692,7 +1571,6 @@ def create_authors_keyboard(page, pages_of_authors):
                 text = f"{author_name} ({book_count})"
                 keyboard.append([InlineKeyboardButton(
                     text,
-                    # callback_data=f"show_author:{page}:{idx}"
                     callback_data = f"show_author:{author_id}"
                 )])
 
@@ -1744,9 +1622,7 @@ async def handle_search_authors(update: Update, context: CallbackContext):
 
     # Ищем авторов
     authors, found_authors_count = DB_BOOKS.search_authors(
-        query_text,
-        # user_params.MaxBooks,
-        user_params.Lang, size_limit, rating_filter
+        query_text, user_params.Lang, size_limit, rating_filter
     )
 
     if authors or found_authors_count > 0:
@@ -1781,18 +1657,6 @@ async def handle_search_authors(update: Update, context: CallbackContext):
 async def handle_search_author_books(query, context, action, params):
     """Показывает книги выбранного автора"""
     try:
-        # page_num = int(params[0])
-        # author_idx = int(params[1])
-        #
-        # # Получаем автора из контекста
-        # pages_of_authors = context.user_data.get(PAGES_OF_AUTHORS)
-        # if not pages_of_authors or page_num >= len(pages_of_authors) or author_idx >= len(pages_of_authors[page_num]):
-        #     await query.edit_message_text("❌ Ошибка: не удалось найти автора")
-        #     return
-        #
-        # author_name, search_author_name, book_count, author_id = pages_of_authors[page_num][author_idx]
-        # context.user_data['current_author_name'] = author_name  # Сохраняем имя автора
-
         author_id = int(params[0])
 
         user = query.from_user
@@ -1801,15 +1665,11 @@ async def handle_search_author_books(query, context, action, params):
         rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
 
         # Ищем книги автора в комбинации с предыдущим запросом
-        # query_text = f"{context.user_data['authors_search_query']}, автор: {search_author_name}"
         query_text = f"{context.user_data['authors_search_query']}"
 
         books, found_books_count = DB_BOOKS.search_books(
-            query_text,
-            # user_params.MaxBooks,
-            user_params.Lang,
-            user_params.DateSortOrder, size_limit, rating_filter,
-            author_id = author_id
+            query_text, user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter,
+            author_id = author_id # Добавляем ограничение по автору для поиска книг выбранного автора
         )
 
         if books:
@@ -1830,7 +1690,6 @@ async def handle_search_author_books(query, context, action, params):
                 header_text = form_header_books(page, user_params.MaxBooks, found_books_count, 'книг', None, author_name)
                 await query.edit_message_text(header_text, reply_markup=reply_markup)
         else:
-            # await query.edit_message_text(f"Не найдено книг автора '{author_name}'")
             await query.edit_message_text(f"Не найдено книг автора '{author_id}'")
 
         logger.log_user_action(user, "searched for books", f"{query_text}; count:{found_books_count}")

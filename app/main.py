@@ -1,5 +1,3 @@
-#import configparser
-from datetime import datetime
 import os
 
 from telegram import BotCommand, Update
@@ -11,8 +9,8 @@ from telegram.error import Forbidden, BadRequest, TimedOut
 from handlers import handle_message, button_callback, start_cmd, genres_cmd, langs_cmd, settings_cmd, donate_cmd, \
     help_cmd, about_cmd, news_cmd, handle_group_message
 from admin import admin_cmd, cancel_auth, auth_password, AUTH_PASSWORD, handle_admin_buttons, ADMIN_BUTTONS
-from constants import CLEANUP_INTERVAL #, MONITORING_INTERVAL  # FLIBUSTA_DB_BOOKS_PATH, FLIBUSTA_DB_SETTINGS_PATH
-from health import log_stats, cleanup_old_sessions
+from constants import CLEANUP_INTERVAL
+from health import cleanup_old_sessions
 
 
 async def error_handler(update: Update, context: CallbackContext):
@@ -51,7 +49,6 @@ async def set_commands(application: Application):
         BotCommand("langs", "Доступные языки"),
         BotCommand("set", "Настройки поиска"),
         BotCommand("donate", "Поддержать разработчика")
-        #        BotCommand("search", "Поиск книг"),
     ]
     await application.bot.set_my_commands(commands)
 
