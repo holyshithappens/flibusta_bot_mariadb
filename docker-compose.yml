@@ -16,6 +16,8 @@ services:
       - --character-set-server=utf8mb3
       - --collation-server=utf8mb3_unicode_ci
       - --skip-character-set-client-handshake  # ИГНОРИРОВАТЬ клиентские настройки
+      - --ft_min_word_len=3
+      - --innodb_ft_min_token_size=3
       - --innodb-buffer-pool-size=128M #(было 128M)
       - --key-buffer-size=32M #(было 8M)e
       - --max-connections=100 #(было 151)

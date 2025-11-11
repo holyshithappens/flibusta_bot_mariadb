@@ -58,160 +58,160 @@ def format_size(size_in_bytes):
 #        query = query.replace(keyword, "")
 #    return [word.strip() for word in query.split() if len(word.strip()) > 1]
 
-def split_word_by_control_sign(source_word):
-    word = source_word.strip()
-    operator = 'LIKE' # По умолчанию используется LIKE
-    if len(word) > 1:
-        # Определяем оператор на основе первого символа
-        if word.startswith('!'):
-            operator = '<>'
-            word = word[1:]  # Убираем символ '!'
-        elif word.startswith('='):
-            operator = '='
-            word = word[1:]  # Убираем символ '='
-        elif word.startswith('~'):
-            operator = 'NOT LIKE'
-            word = word[1:]  # Убираем символ '~'
+# def split_word_by_control_sign(source_word):
+#     word = source_word.strip()
+#     operator = 'LIKE' # По умолчанию используется LIKE
+#     if len(word) > 1:
+#         # Определяем оператор на основе первого символа
+#         if word.startswith('!'):
+#             operator = '<>'
+#             word = word[1:]  # Убираем символ '!'
+#         elif word.startswith('='):
+#             operator = '='
+#             word = word[1:]  # Убираем символ '='
+#         elif word.startswith('~'):
+#             operator = 'NOT LIKE'
+#             word = word[1:]  # Убираем символ '~'
+#
+#     return word, operator
 
-    return word, operator
+# def split_query_into_words(query):
+#     """
+#     Разбивает запрос на слова, учитывая специальные символы в начале слов.
+#     Возвращает список кортежей (слово, оператор).
+#     """
+#     #keywords = ["автор", "название", "жанр", "наименование", "писатель"]
+#     #for keyword in keywords:
+#     #    query = query.replace(keyword, "")
+#
+#     words = []
+#     for word in query.split():
+#         word = word.strip()
+#         if len(word) > 1:
+#             # Определяем оператор на основе первого символа
+#             word, operator = split_word_by_control_sign(word)
+#             words.append((word, operator))
+#     return words
 
-def split_query_into_words(query):
-    """
-    Разбивает запрос на слова, учитывая специальные символы в начале слов.
-    Возвращает список кортежей (слово, оператор).
-    """
-    #keywords = ["автор", "название", "жанр", "наименование", "писатель"]
-    #for keyword in keywords:
-    #    query = query.replace(keyword, "")
-
-    words = []
-    for word in query.split():
-        word = word.strip()
-        if len(word) > 1:
-            # Определяем оператор на основе первого символа
-            word, operator = split_word_by_control_sign(word)
-            words.append((word, operator))
-    return words
-
-def extract_criteria(text):
-    """
-    Разбивает текст на критерии и свободный текст.
-    Свободный текст может быть только слева или справа от критериев.
-    """
-    text = text.strip()
-    if not text:
-        return []
-
-    # pattern = re.compile(CRITERIA_PATTERN, re.IGNORECASE)
-    # # Находим все критерии
-    # matches = list(re.finditer(pattern, text))
-
-    # Сначала ищем серии в кавычках
-    series_quoted_pattern = re.compile(CRITERIA_PATTERN_SERIES_QUOTED, re.IGNORECASE)
-    series_quoted_matches = list(re.finditer(series_quoted_pattern, text))
-
-    # Убираем найденные серии в кавычках из текста для дальнейшего поиска
-    text_without_quoted_series = text
-    for match in series_quoted_matches:
-        text_without_quoted_series = text_without_quoted_series.replace(match.group(0), '')
-
-    # Затем ищем все остальные критерии
-    all_pattern = re.compile(CRITERIA_PATTERN, re.IGNORECASE)
-    all_matches = list(re.finditer(all_pattern, text_without_quoted_series))
-
-    # Определяем позицию первого и последнего критерия
-    all_matches = series_quoted_matches + all_matches
-    all_matches.sort(key=lambda x: x.start())
-
-    if not all_matches:
-        # Нет критериев - весь текст свободный
-        return []
-
-    #debug
-    print(f"DEBUG: all_matches: {all_matches}")
-
-    # Определяем позицию первого и последнего критерия
-    first_match_start = all_matches[0].start()
-    last_match_end = all_matches[-1].end()
-
-    # Свободный текст слева от критериев
-    free_text_left = text[:first_match_start].strip()
-    free_text_left = free_text_left.strip(' ,;')
-
-    # Свободный текст справа от критериев
-    free_text_right = text[last_match_end:].strip()
-    free_text_right = free_text_right.strip(' ,;')
-
-    free_text = free_text_left if free_text_left else free_text_right
-
-    criteria_values = []
-    # Добавляем свободный текст как критерий "полный"
-    if free_text:
-        criteria_values.insert(0, ('полный', free_text))
-
-    # Получаем значения критериев из matches
-    for match in all_matches:
-        criterion = match.group(1).lower()
-        value = match.group(2).strip()
-        criteria_values.append((criterion, value))
-
-    # Обрабатываем все критерии (включая добавленный "полный")
-    results = []
-    for criterion, value in criteria_values:
-        criterion = criterion.lower()
-        value = value.strip()
-
-        # ОСОБАЯ ОБРАБОТКА ДЛЯ КРИТЕРИЯ "РЕЙТИНГ"
-        if criterion == 'рейтинг':
-            # Обрабатываем цифры рейтинга (например: 012, 45, 5 и т.д.)
-            if value.isdigit():
-                # Преобразуем строку цифр в список отдельных рейтингов
-                ratings = list(set(value))  # Убираем дубликаты
-                for rating in ratings:
-                    if rating in '012345':  # Проверяем валидность рейтинга
-                        results.append((criterion, rating, '=', 'OR' if len(ratings) > 1 else 'AND'))
-            continue  # Пропускаем обычную обработку для рейтинга
-
-        # Особая обработка для критерия "серия" с кавычками
-        if criterion == 'серия' and (value.startswith('"') and value.endswith('"') or
-                                     value.startswith("'") and value.endswith("'")):
-            # Точное совпадение для серии в кавычках
-            exact_value = value[1:-1].strip()  # Убираем кавычки
-            results.append((criterion, exact_value, '=', 'AND'))
-        elif criterion == 'год':
-            # Обработка различных форматов года
-            if '-' in value:
-                if value.startswith('-'):
-                    # Формат: -2021 (до 2021)
-                    results.append((criterion, value[1:], '<=', 'AND'))
-                elif value.endswith('-'):
-                    # Формат: 2021- (от 2021)
-                    results.append((criterion, value[:-1], '>=', 'AND'))
-                else:
-                    # Формат: 2021-2023 (диапазон)
-                    year_from, year_to = value.split('-')
-                    results.append((criterion, year_from, '>=', 'AND'))
-                    results.append((criterion, year_to, '<=', 'AND'))
-            else:
-                # Точно указанный год
-                results.append((criterion, value, '=', 'AND'))
-        else:
-            # Остальные критерии (автор, название и т.д.)
-            #word, operator = split_word_by_control_sign(value)
-            #results.append((criterion, word, operator))
-
-            #words = split_query_into_words(value)
-            #for word, operator in words:
-            #    results.append((criterion, word, operator))
-
-            # Разбиваем значение по "|" для OR-условий
-            or_parts = [part.strip() for part in value.split('|') if part.strip()]
-            for part in or_parts:
-                words = split_query_into_words(part)
-                for word, operator in words:
-                    results.append((criterion, word, operator, 'OR' if len(or_parts) > 1 else 'AND'))
-
-    return results
+# def extract_criteria(text):
+#     """
+#     Разбивает текст на критерии и свободный текст.
+#     Свободный текст может быть только слева или справа от критериев.
+#     """
+#     text = text.strip()
+#     if not text:
+#         return []
+#
+#     # pattern = re.compile(CRITERIA_PATTERN, re.IGNORECASE)
+#     # # Находим все критерии
+#     # matches = list(re.finditer(pattern, text))
+#
+#     # Сначала ищем серии в кавычках
+#     series_quoted_pattern = re.compile(CRITERIA_PATTERN_SERIES_QUOTED, re.IGNORECASE)
+#     series_quoted_matches = list(re.finditer(series_quoted_pattern, text))
+#
+#     # Убираем найденные серии в кавычках из текста для дальнейшего поиска
+#     text_without_quoted_series = text
+#     for match in series_quoted_matches:
+#         text_without_quoted_series = text_without_quoted_series.replace(match.group(0), '')
+#
+#     # Затем ищем все остальные критерии
+#     all_pattern = re.compile(CRITERIA_PATTERN, re.IGNORECASE)
+#     all_matches = list(re.finditer(all_pattern, text_without_quoted_series))
+#
+#     # Определяем позицию первого и последнего критерия
+#     all_matches = series_quoted_matches + all_matches
+#     all_matches.sort(key=lambda x: x.start())
+#
+#     if not all_matches:
+#         # Нет критериев - весь текст свободный
+#         return []
+#
+#     #debug
+#     print(f"DEBUG: all_matches: {all_matches}")
+#
+#     # Определяем позицию первого и последнего критерия
+#     first_match_start = all_matches[0].start()
+#     last_match_end = all_matches[-1].end()
+#
+#     # Свободный текст слева от критериев
+#     free_text_left = text[:first_match_start].strip()
+#     free_text_left = free_text_left.strip(' ,;')
+#
+#     # Свободный текст справа от критериев
+#     free_text_right = text[last_match_end:].strip()
+#     free_text_right = free_text_right.strip(' ,;')
+#
+#     free_text = free_text_left if free_text_left else free_text_right
+#
+#     criteria_values = []
+#     # Добавляем свободный текст как критерий "полный"
+#     if free_text:
+#         criteria_values.insert(0, ('полный', free_text))
+#
+#     # Получаем значения критериев из matches
+#     for match in all_matches:
+#         criterion = match.group(1).lower()
+#         value = match.group(2).strip()
+#         criteria_values.append((criterion, value))
+#
+#     # Обрабатываем все критерии (включая добавленный "полный")
+#     results = []
+#     for criterion, value in criteria_values:
+#         criterion = criterion.lower()
+#         value = value.strip()
+#
+#         # ОСОБАЯ ОБРАБОТКА ДЛЯ КРИТЕРИЯ "РЕЙТИНГ"
+#         if criterion == 'рейтинг':
+#             # Обрабатываем цифры рейтинга (например: 012, 45, 5 и т.д.)
+#             if value.isdigit():
+#                 # Преобразуем строку цифр в список отдельных рейтингов
+#                 ratings = list(set(value))  # Убираем дубликаты
+#                 for rating in ratings:
+#                     if rating in '012345':  # Проверяем валидность рейтинга
+#                         results.append((criterion, rating, '=', 'OR' if len(ratings) > 1 else 'AND'))
+#             continue  # Пропускаем обычную обработку для рейтинга
+#
+#         # Особая обработка для критерия "серия" с кавычками
+#         if criterion == 'серия' and (value.startswith('"') and value.endswith('"') or
+#                                      value.startswith("'") and value.endswith("'")):
+#             # Точное совпадение для серии в кавычках
+#             exact_value = value[1:-1].strip()  # Убираем кавычки
+#             results.append((criterion, exact_value, '=', 'AND'))
+#         elif criterion == 'год':
+#             # Обработка различных форматов года
+#             if '-' in value:
+#                 if value.startswith('-'):
+#                     # Формат: -2021 (до 2021)
+#                     results.append((criterion, value[1:], '<=', 'AND'))
+#                 elif value.endswith('-'):
+#                     # Формат: 2021- (от 2021)
+#                     results.append((criterion, value[:-1], '>=', 'AND'))
+#                 else:
+#                     # Формат: 2021-2023 (диапазон)
+#                     year_from, year_to = value.split('-')
+#                     results.append((criterion, year_from, '>=', 'AND'))
+#                     results.append((criterion, year_to, '<=', 'AND'))
+#             else:
+#                 # Точно указанный год
+#                 results.append((criterion, value, '=', 'AND'))
+#         else:
+#             # Остальные критерии (автор, название и т.д.)
+#             #word, operator = split_word_by_control_sign(value)
+#             #results.append((criterion, word, operator))
+#
+#             #words = split_query_into_words(value)
+#             #for word, operator in words:
+#             #    results.append((criterion, word, operator))
+#
+#             # Разбиваем значение по "|" для OR-условий
+#             or_parts = [part.strip() for part in value.split('|') if part.strip()]
+#             for part in or_parts:
+#                 words = split_query_into_words(part)
+#                 for word, operator in words:
+#                     results.append((criterion, word, operator, 'OR' if len(or_parts) > 1 else 'AND'))
+#
+#     return results
 
 # def extract_cover_from_fb2(file):
 #     try:
@@ -344,42 +344,42 @@ def extract_criteria(text):
 #         message = None
 #     return message
 
-def remove_punctuation(text):
-    if text is None:
-        return None
-    else:
-        return re.sub(r'[^\w\s]', ' ', text)
+# def remove_punctuation(text):
+#     if text is None:
+#         return None
+#     else:
+#         return re.sub(r'[^\w\s]', ' ', text)
 
-def _get_reader_links_for_platform(platform: str) -> str:
-    """
-    Возвращает HTML с ссылками на читалки для конкретной платформы
-    """
-    if platform == 'android':
-        return """
-📱 <b>Читалки для Android:</b>
-• 📖 <a href="https://play.google.com/store/apps/details?id=org.readera">ReadEra</a> - лучшая бесплатная
-• 📚 <a href="https://play.google.com/store/apps/details?id=com.flyersoft.moonreader">Moon+ Reader</a> - мощная
-• 🔥 <a href="https://play.google.com/store/apps/details?id=com.amazon.kindle">Kindle</a> - от Amazon
-• 📓 <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.playbooks">Google Play Книги</a>
-"""
-    elif platform == 'ios':
-        return """
-📱 <b>Читалки для iOS:</b>
-• 📖 <a href="https://apps.apple.com/ru/app/readera-читалка-книг-pdf/id1441824222">ReadEra</a>
-• 📚 <a href="https://apps.apple.com/ru/app/kybook-3-ebook-reader/id1259787028">KyBook 3</a>
-• 🔥 <a href="https://apps.apple.com/ru/app/amazon-kindle/id302584613">Kindle</a>
-• 📓 <a href="https://apps.apple.com/ru/app/apple-books/id364709193">Apple Books</a>
-"""
-    else:
-        # Для десктопов и неизвестных платформ показываем универсальные варианты
-        return """
-💻 <b>Читалки для всех платформ:</b>
-• 📖 <a href="https://play.google.com/store/apps/details?id=org.readera">ReadEra (Android)</a>
-• 📖 <a href="https://apps.apple.com/ru/app/readera-читалка-книг-pdf/id1441824222">ReadEra (iOS)</a>
-• 📚 <a href="https://www.calibre-ebook.com/">Calibre</a> - для компьютера (Windows/Mac/Linux)
-• 🔥 <a href="https://www.amazon.com/b?node=16571048011">Kindle</a> - все платформы
-• 📘 <a href="https://apps.apple.com/ru/app/apple-books/id364709193">Apple Books</a> (Mac/iOS)
-"""
+# def _get_reader_links_for_platform(platform: str) -> str:
+#     """
+#     Возвращает HTML с ссылками на читалки для конкретной платформы
+#     """
+#     if platform == 'android':
+#         return """
+# 📱 <b>Читалки для Android:</b>
+# • 📖 <a href="https://play.google.com/store/apps/details?id=org.readera">ReadEra</a> - лучшая бесплатная
+# • 📚 <a href="https://play.google.com/store/apps/details?id=com.flyersoft.moonreader">Moon+ Reader</a> - мощная
+# • 🔥 <a href="https://play.google.com/store/apps/details?id=com.amazon.kindle">Kindle</a> - от Amazon
+# • 📓 <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.playbooks">Google Play Книги</a>
+# """
+#     elif platform == 'ios':
+#         return """
+# 📱 <b>Читалки для iOS:</b>
+# • 📖 <a href="https://apps.apple.com/ru/app/readera-читалка-книг-pdf/id1441824222">ReadEra</a>
+# • 📚 <a href="https://apps.apple.com/ru/app/kybook-3-ebook-reader/id1259787028">KyBook 3</a>
+# • 🔥 <a href="https://apps.apple.com/ru/app/amazon-kindle/id302584613">Kindle</a>
+# • 📓 <a href="https://apps.apple.com/ru/app/apple-books/id364709193">Apple Books</a>
+# """
+#     else:
+#         # Для десктопов и неизвестных платформ показываем универсальные варианты
+#         return """
+# 💻 <b>Читалки для всех платформ:</b>
+# • 📖 <a href="https://play.google.com/store/apps/details?id=org.readera">ReadEra (Android)</a>
+# • 📖 <a href="https://apps.apple.com/ru/app/readera-читалка-книг-pdf/id1441824222">ReadEra (iOS)</a>
+# • 📚 <a href="https://www.calibre-ebook.com/">Calibre</a> - для компьютера (Windows/Mac/Linux)
+# • 🔥 <a href="https://www.amazon.com/b?node=16571048011">Kindle</a> - все платформы
+# • 📘 <a href="https://apps.apple.com/ru/app/apple-books/id364709193">Apple Books</a> (Mac/iOS)
+# """
 
 def get_platform_recommendations() -> str:
     """
@@ -580,17 +580,17 @@ def format_book_reviews(reviews):
     """Форматирует отзывы о книге"""
     text = "💬 <b>Отзывы о книге:</b>\n\n"
 
-    for name, time, review_text in reviews[:20]:
+    for name, time, review_text in reviews[:30]:
         text += f"👤 <b>{name}</b> ({time})\n"
         # # clean_review = re.sub('<[^<]+?>', '', review_text)
         # # clean_review = re.sub(r'\[[^\]]*?\]', '', clean_review)  # Квадратные скобки
         # # clean_review = re.sub('&nbsp;', '', clean_review)  # &nbsp;
         # clean_review = html.escape(review_text)
         clean_review = clean_html_tags(review_text)
-        text += f"{clean_review[:400]}" + ("..." if len(clean_review) > 400 else "") + "\n"
+        text += f"{clean_review[:1000]}" + ("..." if len(clean_review) > 1000 else "") + "\n"
         # text += "─" * 20 + "\n\n"
 
-    return text
+    return text[:4000]
 
 def clean_html_tags(text):
     """Удаляем html-теги и очищаем от лишнего мусора"""
