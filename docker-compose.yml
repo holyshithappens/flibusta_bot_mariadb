@@ -45,7 +45,7 @@ services:
     env_file: .env
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
-      - DB_HOST=mariadb
+      - DB_HOST=db
     deploy:
       resources:
         limits:
