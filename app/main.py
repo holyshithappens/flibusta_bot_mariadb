@@ -11,7 +11,7 @@ from handlers import handle_message, button_callback, start_cmd, genres_cmd, lan
 from admin import admin_cmd, cancel_auth, auth_password, AUTH_PASSWORD, handle_admin_buttons, ADMIN_BUTTONS
 from constants import CLEANUP_INTERVAL
 from health import cleanup_old_sessions
-
+from logger import logger
 
 async def error_handler(update: Update, context: CallbackContext):
     """Глобальный обработчик ошибок"""
@@ -53,6 +53,8 @@ async def set_commands(application: Application):
     await application.bot.set_my_commands(commands)
 
 
+# ==== ОБРАБОТКА ПОЛУЧЕНИЯ ДОНАТОВ ====
+
 async def pre_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
     await query.answer(ok=True)
@@ -60,14 +62,18 @@ async def pre_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
-    stars_amount = payment.total_amount / 100  # Конвертируем в звезды
+    stars_amount = payment.total_amount
 
-    await update.message.reply_text(
+    await update.message.reply_photo(
+        path = 'https://gifdb.com/images/high/robocop-thank-you-for-your-cooperation-gqen0zm4lhjdh14d.webp'
         f"🎉 Спасибо за донат! Вы отправили {stars_amount} звёзд!\n"
-        f"Ваша поддержка очень важна для нас! ❤️"
+        f"Все средства пойдут на аренду VPS! ❤️"
     )
 
-    print(f"Получен донат: {stars_amount} звёзд от пользователя {update.message.from_user.id}")
+    user = update.message.from_user
+    print(f"Получен донат: {stars_amount} звёзд от пользователя {user.id}")
+    logger.log_user_action(user.id, "received TG stars", stars_amount)
+
 
 
 def main():

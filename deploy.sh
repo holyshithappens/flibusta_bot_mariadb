@@ -67,7 +67,7 @@ copy_sql_files() {
     echo "📁 Copying SQL files on VPS..."
 
     # Копируем SQL файлы если они существуют
-    scp db_init/zz_convert_charset.sql $VPS_USER@$VPS_IP:$VPS_PATH/db_init/zz_convert_charset.sql
+    scp db_init/zz_*.sql $VPS_USER@$VPS_IP:$VPS_PATH/db_init/
     if ls db_init/sql/*.sql.gz 1> /dev/null 2>&1; then
         echo "📦 Copying SQL.gz files to VPS..."
 #        scp db_init/sql/*.sql.gz $VPS_USER@$VPS_IP:$VPS_PATH/db_init/sql/
