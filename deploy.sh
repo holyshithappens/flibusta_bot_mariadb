@@ -51,10 +51,11 @@ setup_directories_and_files() {
     echo "📁 Setting up directories and files on VPS..."
 
     ssh $VPS_USER@$VPS_IP << EOF
-mkdir -p ~/$VPS_PATH/data ~/$VPS_PATH/logs ~/$VPS_PATH/db_init/sql ~/$VPS_PATH/db_backups
+mkdir -p ~/$VPS_PATH/data ~/$VPS_PATH/logs ~/$VPS_PATH/db_init/sql ~/$VPS_PATH/db_backups ~/$VPS_PATH/config
 EOF
 
     scp .env.vps $VPS_USER@$VPS_IP:$VPS_PATH/.env
+    scp config/my.cnf.vps $VPS_USER@$VPS_IP:$VPS_PATH/config/my.cnf
     scp docker-compose.yml $VPS_USER@$VPS_IP:$VPS_PATH/docker-compose.yml
 #    scp db_init/init_db.sh $VPS_USER@$VPS_IP:$VPS_PATH/db_init/init_db.sh
 
@@ -209,7 +210,7 @@ cd ~/$VPS_PATH
 sleep 10
 docker-compose ps
 echo ""
-docker-compose logs --tail=15 mariadb
+docker-compose logs --tail=15 db
 EOF
 
     echo "✅ Status check completed"

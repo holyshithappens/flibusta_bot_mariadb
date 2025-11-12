@@ -1,0 +1,30 @@
+[mysqld]
+# Character set
+character-set-server=utf8mb3
+collation-server=utf8mb3_unicode_ci
+skip-character-set-client-handshake
+
+# Full-text search
+ft_min_word_len=3
+innodb_ft_min_token_size=3
+
+# Performance
+innodb-buffer-pool-size=128M
+key-buffer-size=32M
+max-connections=100
+query-cache-size=0
+tmp-table-size=16M
+max-heap-table-size=16M
+table-open-cache=1000
+thread-cache-size=8
+innodb-log-file-size=32M
+performance-schema=ON
+
+# Network and security
+#bind-address=0.0.0.0
+#skip-name-resolve
+
+# SSL - правильные опции
+#ssl=0
+#skip-ssl
+#require-secure-transport=OFF

@@ -2,7 +2,7 @@ import os
 
 from telegram import BotCommand, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, \
-    ConversationHandler, CallbackContext
+    ConversationHandler, CallbackContext, ContextTypes, PreCheckoutQueryHandler
 from telegram.request import HTTPXRequest
 from telegram.error import Forbidden, BadRequest, TimedOut
 
@@ -51,6 +51,23 @@ async def set_commands(application: Application):
         BotCommand("donate", "Поддержать разработчика")
     ]
     await application.bot.set_my_commands(commands)
+
+
+async def pre_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.pre_checkout_query
+    await query.answer(ok=True)
+
+
+async def successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    payment = update.message.successful_payment
+    stars_amount = payment.total_amount / 100  # Конвертируем в звезды
+
+    await update.message.reply_text(
+        f"🎉 Спасибо за донат! Вы отправили {stars_amount} звёзд!\n"
+        f"Ваша поддержка очень важна для нас! ❤️"
+    )
+
+    print(f"Получен донат: {stars_amount} звёзд от пользователя {update.message.from_user.id}")
 
 
 def main():
@@ -110,6 +127,9 @@ def main():
         # job_queue.run_repeating(log_stats, interval=MONITORING_INTERVAL, first=10)
         # Периодическая очистка старых пользовательских сессий
         job_queue.run_repeating(cleanup_old_sessions, interval=CLEANUP_INTERVAL, first=CLEANUP_INTERVAL)
+
+    application.add_handler(PreCheckoutQueryHandler(pre_checkout))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment))
 
     application.run_polling()
 

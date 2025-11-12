@@ -2,7 +2,7 @@
 #version: '3.8'
 
 services:
-  mariadb:
+  db:
     image: mariadb:12.0
     container_name: flibusta-db
     restart: unless-stopped
@@ -12,22 +12,16 @@ services:
       - MYSQL_USER=${DB_USER:-flibusta}
       - MYSQL_PASSWORD=${DB_PASSWORD:-flibusta}
       - TZ=Europe/Moscow
-    command:
-      - --character-set-server=utf8mb3
-      - --collation-server=utf8mb3_unicode_ci
-      - --skip-character-set-client-handshake  # ИГНОРИРОВАТЬ клиентские настройки
-      - --ft_min_word_len=3
-      - --innodb_ft_min_token_size=3
-      - --innodb-buffer-pool-size=128M #(было 128M)
-      - --key-buffer-size=32M #(было 8M)e
-      - --max-connections=100 #(было 151)
-      - --query-cache-size=0 #(совпадает)
-      - --tmp-table-size=16M #(было 16M)
-      - --max-heap-table-size=16M #(было 16M)
-      - --table-open-cache=1000 #(было 2000)
-      - --thread-cache-size=8 #(было 0) - определяется автоматически
-      - --innodb-log-file-size=32M #(было 48M)
-      - --performance-schema=ON #(было ON)
+#    command:
+#      - --bind-address=0.0.0.0
+#      - --character-set-server=utf8mb3
+#      - --collation-server=utf8mb3_unicode_ci
+#      - --skip-character-set-client-handshake
+      # ПРАВИЛЬНЫЕ опции для отключения SSL в MariaDB 12.0
+#      - --skip-ssl
+#      - --ssl=0
+    ports:
+      - "3306:3306"
     deploy:
       resources:
         limits:
@@ -36,6 +30,7 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql  # Тот же volume
       - ./db_init:/docker-entrypoint-initdb.d:ro
+      - ./config/my.cnf:/etc/mysql/conf.d/custom.cnf:ro  # ✅ Монтируем конфиг
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       start_period: 30s
@@ -60,7 +55,7 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
     depends_on:
-      mariadb:
+      db:
         condition: service_healthy
     user: "1000:1000"
 

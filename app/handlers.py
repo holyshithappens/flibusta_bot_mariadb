@@ -1,10 +1,10 @@
 from datetime import datetime
 import os
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, KeyboardButton, ReplyKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, LabeledPrice
 from telegram.constants import ParseMode
 from telegram.error import TimedOut, BadRequest, Forbidden
-from telegram.ext import CallbackContext #, ConversationHandler
+from telegram.ext import CallbackContext, ContextTypes
 
 from database import DatabaseBooks, DatabaseSettings
 from constants import FLIBUSTA_BASE_URL, DEFAULT_BOOK_FORMAT, \
@@ -975,8 +975,50 @@ async def donate_cmd(update: Update, context: CallbackContext):
     )
 
     user = update.message.from_user
-    # update_user_activity(context, user.id)
     logger.log_user_action(user, "viewed donate page")
+
+    try:
+        chat_id = update.message.chat_id
+        title = "Поддержать разработчика"
+        payload = "donation-payload"
+        currency = "XTR"  # Telegram Stars
+
+        descr_1 = "Так, просто так!"
+        prices_1 = [LabeledPrice("1 звезда", 1),]
+        await send_invoice(context, chat_id, title, descr_1, payload, currency, prices_1)
+        descr_50 = "Примерно неделя аренды текущего VPS"
+        prices_50 = [LabeledPrice("50 звезда", 50),]
+        await send_invoice(context, chat_id, title, descr_50, payload, currency, prices_50)
+        descr_200 = "Примерно месяц аренды текущего VPS"
+        prices_200 = [LabeledPrice("200 звёзд", 200),]
+        await send_invoice(context, chat_id, title, descr_200, payload, currency, prices_200)
+        descr_1200 = "Примерно полгода аренды текущего VPS"
+        prices_1200 = [LabeledPrice("1200 звёзд", 1200),]
+        await send_invoice(context, chat_id, title, descr_1200, payload, currency, prices_1200)
+
+    except Exception as e:
+        print(f"Ошибка при создании инвойса: {e}")
+        await update.message.reply_text("Произошла ошибка при создании платежа")
+
+
+async def send_invoice(context, chat_id, title, description, payload, currency, prices):
+    await context.bot.send_invoice(
+            chat_id=chat_id,
+            title=title,
+            description=description,
+            payload=payload,
+            provider_token=None,  # Обязательно None для Stars
+            currency=currency,
+            prices=prices,
+            start_parameter="donate"  # Добавляем start_parameter
+            # need_name=False,
+            # need_phone_number=False,
+            # need_email=False,
+            # need_shipping_address=False,
+            # is_flexible=False
+            # max_tip_amount=5000,  # Максимальное количество звезд
+            # suggested_tip_amounts=[100, 500, 1000]  # Предлагаемые суммы
+        )
 
 
 async def help_cmd(update: Update, context: CallbackContext):
