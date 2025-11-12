@@ -983,9 +983,9 @@ async def donate_cmd(update: Update, context: CallbackContext):
         payload = "donation-payload"
         currency = "XTR"  # Telegram Stars
 
-        descr_1 = "Так, просто так!"
-        prices_1 = [LabeledPrice("1 звезда", 1),]
-        await send_invoice(context, chat_id, title, descr_1, payload, currency, prices_1)
+        descr_5 = "Так, просто так!"
+        prices_5 = [LabeledPrice("5 звёзд", 5),]
+        await send_invoice(context, chat_id, title, descr_5, payload, currency, prices_5)
         descr_50 = "Примерно неделя аренды текущего VPS"
         prices_50 = [LabeledPrice("50 звезда", 50),]
         await send_invoice(context, chat_id, title, descr_50, payload, currency, prices_50)

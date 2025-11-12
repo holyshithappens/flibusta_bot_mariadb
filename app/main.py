@@ -67,7 +67,8 @@ async def successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_photo(
         photo='https://gifdb.com/images/high/robocop-thank-you-for-your-cooperation-gqen0zm4lhjdh14d.webp',
         caption=f"🎉 Спасибо за донат! Вы отправили {stars_amount} звёзд!\n" 
-                f"Все средства пойдут на аренду VPS! ❤️")
+                f"Все средства пойдут на аренду VPS! ❤️"
+    )
 
     user = update.message.from_user
     print(f"DEBUG: Получен донат: {stars_amount} звёзд от пользователя {user.id}")
