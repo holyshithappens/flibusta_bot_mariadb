@@ -1033,7 +1033,7 @@ async def help_cmd(update: Update, context: CallbackContext):
     ✏️ <code>Перельман математика</code>
 
     <u>Советы для эффективного поиска:</u>
-    🔍 <b>Несколько слов</b> - бот ищет книги, содержащие какие-либо из похожих слов
+    🔍 <b>Несколько слов</b> - бот ищет книги, содержащие какие-либо из перечисленных слов
     🔍 <b>Обязательное слово</b> - используйте + перед словом: <code>+жизнь +замечательных людей</code>
     🔍 <b>Исключение слов</b> - используйте - перед словом: <code>+Распутин -Валентин</code>
     🔍 <b>Части слов</b> - можно использовать *: <code>математич*</code>
@@ -1510,11 +1510,14 @@ async def handle_book_info(query, context, action, params):
 async def handle_close_info(query, context, action, params):
     """Универсальный обработчик закрытия информационных сообщений по ID"""
     try:
-        message_id = int(params[0])
-        await context.bot.delete_message(
-            chat_id=query.message.chat_id,
-            message_id=message_id
-        )
+        # message_id = int(params[0])
+        # await context.bot.delete_message(
+        #     chat_id=query.message.chat_id,
+        #     message_id=message_id
+        # )
+        # Удаляем все переданные message_id
+        for msg_id in params:
+            await context.bot.delete_message(query.message.chat_id, int(msg_id))
     except Exception as e:
         print(f"Error in handle_close_info: {e}")
         await query.answer("❌ Ошибка при закрытии информации")
@@ -1562,25 +1565,40 @@ async def handle_author_info(query: CallbackQuery, context: CallbackContext, act
             await query.message.reply_text("❌ Информация об авторе не найдена")
             return
 
+        message_ids = []  # Храним ID всех сообщений
         message_text = format_author_info(author_info)
 
-        # Если есть фото автора, отправляем фото с укороченным текстом об авторе из-за ограничений
-        if author_info.get('photo_url'):
-            info_message = await query.message.reply_photo(
-                photo=author_info['photo_url'],
-                caption=message_text[:1000] + ("..." if len(message_text) > 1000 else ""),
-                parse_mode=ParseMode.HTML
-            )
-        else:
-            info_message = await query.message.reply_text(
-                message_text,
-                parse_mode=ParseMode.HTML
-            )
+        # # Если есть фото автора, отправляем фото с укороченным текстом об авторе из-за ограничений
+        # if author_info.get('photo_url'):
+        #     info_message = await query.message.reply_photo(
+        #         photo=author_info['photo_url'],
+        #         caption=message_text[:1000] + ("..." if len(message_text) > 1000 else ""),
+        #         parse_mode=ParseMode.HTML
+        #     )
+        # else:
+        #     info_message = await query.message.reply_text(
+        #         message_text,
+        #         parse_mode=ParseMode.HTML
+        #     )
+        #
+        # # Добавляем кнопку закрытия с ID сообщения
+        # keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")]]
+        # reply_markup = InlineKeyboardMarkup(keyboard)
+        # await info_message.edit_reply_markup(reply_markup)
 
-        # Добавляем кнопку закрытия с ID сообщения
-        keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await info_message.edit_reply_markup(reply_markup)
+        # Сообщение 1: Фото без подписи (если есть)
+        if author_info.get('photo_url'):
+            photo_message = await query.message.reply_photo(photo=author_info['photo_url'])
+            message_ids.append(photo_message.message_id)
+
+        # Сообщение 2: Аннотация с заголовком
+        bio_message = await query.message.reply_text(message_text, parse_mode=ParseMode.HTML)
+        message_ids.append(bio_message.message_id)
+
+        # Кнопка закрытия с передачей всех message_id
+        close_data = f"close_info:{':'.join(map(str, message_ids))}"
+        keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=close_data)]]
+        await bio_message.edit_reply_markup(InlineKeyboardMarkup(keyboard))
 
     except Exception as e:
         print(f"Error in handle_author_info: {e}")
