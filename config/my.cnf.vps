@@ -9,7 +9,10 @@ ft_min_word_len=3
 innodb_ft_min_token_size=3
 
 # Performance
-innodb-buffer-pool-size=128M
+# 128M
+innodb-buffer-pool-size=1G
+# 32M
+innodb-log-file-size=512M
 key-buffer-size=32M
 max-connections=100
 query-cache-size=0
@@ -17,7 +20,6 @@ tmp-table-size=16M
 max-heap-table-size=16M
 table-open-cache=1000
 thread-cache-size=8
-innodb-log-file-size=32M
 performance-schema=ON
 
 # Network and security
