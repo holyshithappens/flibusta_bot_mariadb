@@ -438,7 +438,7 @@ async def handle_search_books(update: Update, context: CallbackContext):
 
         page = 0
         keyboard = create_books_keyboard(page, pages_of_books)
-        add_close_button(keyboard)
+        # add_close_button(keyboard)
         reply_markup = InlineKeyboardMarkup(keyboard)
         if reply_markup:
             header_found_text = form_header_books(page, user_params.MaxBooks, found_books_count)
@@ -505,7 +505,7 @@ async def handle_search_series(update: Update, context: CallbackContext):
 
         page = 0
         keyboard = create_series_keyboard(page, pages_of_series)
-        add_close_button(keyboard)
+        # add_close_button(keyboard)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
@@ -565,7 +565,7 @@ async def handle_search_series_books(query, context, action, params):
 
             # Добавляем кнопку возврата к сериям
             if keyboard:
-                add_close_button(keyboard)
+                # add_close_button(keyboard)
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
                 header_text = form_header_books(page, user_params.MaxBooks, found_books_count, 'книг', series_name)
@@ -1431,7 +1431,7 @@ async def handle_group_search(update: Update, context: CallbackContext):
             page = 0
 
             keyboard = create_books_keyboard(page, pages_of_books)
-            add_close_button(keyboard)
+            # add_close_button(keyboard)
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             if reply_markup:
@@ -1812,7 +1812,7 @@ async def handle_search_authors(update: Update, context: CallbackContext):
 
         page = 0
         keyboard = create_authors_keyboard(page, pages_of_authors)
-        add_close_button(keyboard)
+        # add_close_button(keyboard)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
