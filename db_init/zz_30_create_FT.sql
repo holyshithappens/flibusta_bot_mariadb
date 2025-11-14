@@ -7,3 +7,5 @@ CREATE TABLE libbook_fts (
     FULLTEXT idx_fts_search (FT)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
 
+-- -- ПОЛНЕТОКСТОВЫЙ ИНДЕКС ДЛЯ ПОИСКА ПО АННОТАЦИИ КНИГ
+CREATE FULLTEXT INDEX idx_annotations_body_ft ON libbannotations (Body);

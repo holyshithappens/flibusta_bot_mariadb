@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+from typing import List, Dict
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, LabeledPrice
 from telegram.constants import ParseMode
@@ -10,7 +11,7 @@ from database import DatabaseBooks, DatabaseSettings
 from constants import FLIBUSTA_BASE_URL, DEFAULT_BOOK_FORMAT, \
     SETTING_MAX_BOOKS, SETTING_LANG_SEARCH, SETTING_SORT_ORDER, SETTING_SIZE_LIMIT, \
     SETTING_BOOK_FORMAT, SETTING_SEARCH_TYPE, SETTING_OPTIONS, SETTING_TITLES, SETTING_RATING_FILTER, BOOK_RATINGS, \
-    BOT_NEWS_FILE_PATH
+    BOT_NEWS_FILE_PATH, SETTING_AUX_SEARCH, SETTING_AUX_SEARCH_BA
 from health import log_stats
 from utils import format_size, get_platform_recommendations, download_book_with_filename, upload_to_tmpfiles, \
     is_message_for_bot, extract_clean_query, get_latest_news, format_book_reviews, format_author_info, \
@@ -297,12 +298,17 @@ def create_settings_menu():
     settings = [(text, setting_type) for setting_type, text in SETTING_TITLES.items()]
 
     keyboard = [[InlineKeyboardButton(text, callback_data=f"set_{key}")] for text, key in settings]
-    return InlineKeyboardMarkup(keyboard)
+    return keyboard
 
 
 async def show_settings_menu(update_or_query, context, from_callback=False):
     """Показывает главное меню настроек"""
-    reply_markup = create_settings_menu()
+    settings_keyboard = create_settings_menu()
+
+    # Добавляем кнопку закрытия без message_id
+    add_close_button(settings_keyboard)
+
+    reply_markup = InlineKeyboardMarkup(settings_keyboard)
 
     if from_callback:
         await update_or_query.edit_message_text("Настроить:", reply_markup=reply_markup)
@@ -312,6 +318,16 @@ async def show_settings_menu(update_or_query, context, from_callback=False):
         user = update_or_query.message.from_user
 
     logger.log_user_action(user, "showed settings menu")
+
+
+def add_close_button(keyboard):
+    """Добавляем к клавиатуре кнопку закрытия"""
+    return keyboard.append([InlineKeyboardButton("❌ Закрыть", callback_data="close_message")])
+
+
+async def handle_close_message(query, context, action, params):
+    """Закрывает меню настроек"""
+    await query.delete_message()
 
 
 async def handle_back_to_series(query, context, action, params):
@@ -403,12 +419,15 @@ async def handle_search_books(update: Update, context: CallbackContext):
 
     size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
     rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+    aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
+    search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA,False) # Дополнительный поиск по аннотации книг
     user_params = DB_SETTINGS.get_user_settings(user.id)
     context.user_data[USER_PARAMS] = user_params
     context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_BOOKS  # Сохраняем контекст
 
     books, found_books_count = DB_BOOKS.search_books(
-        query_text, user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter
+        query_text, user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter,
+        search_annotation = search_annotation
     )
 
     # Проверяем, найдены ли книги
@@ -419,6 +438,7 @@ async def handle_search_books(update: Update, context: CallbackContext):
 
         page = 0
         keyboard = create_books_keyboard(page, pages_of_books)
+        add_close_button(keyboard)
         reply_markup = InlineKeyboardMarkup(keyboard)
         if reply_markup:
             header_found_text = form_header_books(page, user_params.MaxBooks, found_books_count)
@@ -466,13 +486,16 @@ async def handle_search_series(update: Update, context: CallbackContext):
 
     size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
     rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+    aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
+    search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA,False) # Дополнительный поиск по аннотации книг
     user_params = DB_SETTINGS.get_user_settings(user.id)
     context.user_data[USER_PARAMS] = user_params
     context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_SERIES  # Сохраняем контекст
 
     # Ищем серии
     series, found_series_count = DB_BOOKS.search_series(
-        query_text, user_params.Lang, size_limit, rating_filter
+        query_text, user_params.Lang, size_limit, rating_filter,
+        search_annotation = search_annotation
     )
 
     if series or found_series_count > 0:
@@ -482,6 +505,7 @@ async def handle_search_series(update: Update, context: CallbackContext):
 
         page = 0
         keyboard = create_series_keyboard(page, pages_of_series)
+        add_close_button(keyboard)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
@@ -513,6 +537,8 @@ async def handle_search_series_books(query, context, action, params):
         user_params = DB_SETTINGS.get_user_settings(user.id)
         size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
         rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+        aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
+        search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA, False)  # Дополнительный поиск по аннотации книг
 
         # Ищем книги серии в комбинации с предыдущим запросом
         query_text = f"{context.user_data['series_search_query']}"
@@ -521,7 +547,8 @@ async def handle_search_series_books(query, context, action, params):
 
         books, found_books_count = DB_BOOKS.search_books(
             query_text, user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter,
-            series_id #Добавляем ограничение по выбранной серии
+            series_id =series_id, #Добавляем ограничение по выбранной серии
+            search_annotation = search_annotation #Поиск по аннотации книг
         )
 
         if books:
@@ -538,6 +565,7 @@ async def handle_search_series_books(query, context, action, params):
 
             # Добавляем кнопку возврата к сериям
             if keyboard:
+                add_close_button(keyboard)
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
                 header_text = form_header_books(page, user_params.MaxBooks, found_books_count, 'книг', series_name)
@@ -653,6 +681,7 @@ async def handle_private_callback(query, context, action, params):
         f'set_{SETTING_BOOK_FORMAT}': handle_set_book_format,
         f'set_{SETTING_SEARCH_TYPE}': handle_set_search_type,
         f'set_{SETTING_RATING_FILTER}': handle_set_rating_filter,
+        f'set_{SETTING_AUX_SEARCH}': handle_set_aux_search,
         'show_series': handle_search_series_books,
         'back_to_series': handle_back_to_series,
         'show_author': handle_search_author_books,  # Добавляем обработчик для авторов
@@ -663,11 +692,17 @@ async def handle_private_callback(query, context, action, params):
         'author_info': handle_author_info,
         'book_reviews': handle_book_reviews,
         'close_info': handle_close_info,
+        'close_message': handle_close_message,
     }
 
     # Добавим обработку toggle рейтингов
     if action.startswith('toggle_rating_'):
         await handle_toggle_rating(query, context, action, params)
+        return
+
+    # Добавим обработку переключения дополнительных поисков
+    if action.startswith('toggle_search_'):
+        await handle_toggle_search(query, context, action, params)
         return
 
     # Прямой поиск обработчика в словаре
@@ -1248,6 +1283,66 @@ async def handle_reset_ratings(query, context, action, params):
     logger.log_user_action(query.from_user, "reset rating filter")
 
 
+# ==== ПОИСК ПО АННОТАЦИИ ====
+
+async def handle_set_aux_search(query, context, action, params):
+    """Показывает настройки дополнительного поиска"""
+    current_values = context.user_data.get(SETTING_AUX_SEARCH, {})
+
+    options = SETTING_OPTIONS[SETTING_AUX_SEARCH]
+    reply_markup = create_aux_search_keyboard(current_values, options)
+
+    await edit_or_reply_message(query, SETTING_TITLES[SETTING_AUX_SEARCH], reply_markup)
+    logger.log_user_action(query.from_user, "showed aux search setting")
+
+
+def create_aux_search_keyboard(current_values, options):
+    """Создает клавиатуру для множественного выбора рейтингов"""
+    keyboard = []
+
+    for value, display_text in options:
+        is_selected = current_values.get(value, False)
+        emoji = "✔" if is_selected else ""
+        button_text = f"{emoji} {display_text}"
+
+        keyboard.append([InlineKeyboardButton(
+            button_text,
+            callback_data=f"toggle_search_{value}"
+        )])
+
+    # # Кнопка сброса
+    # keyboard.append([InlineKeyboardButton("🔄 Сбросить все", callback_data="reset_ratings")])
+
+    # Кнопка назад
+    keyboard += create_back_button()
+
+    return InlineKeyboardMarkup(keyboard)
+
+
+async def handle_toggle_search(query, context, action, params):
+    """Обрабатывает переключение режима доп. поиска"""
+    search_value = action.removeprefix('toggle_search_')
+    current_values = context.user_data.get(SETTING_AUX_SEARCH, {})
+    current_search = current_values.get(search_value, False)
+
+    current_search = not current_search
+
+    current_values[search_value] = current_search
+    context.user_data[SETTING_AUX_SEARCH] = current_values
+
+    # Обновляем клавиатуру
+    options = SETTING_OPTIONS[SETTING_AUX_SEARCH]
+    reply_markup = create_aux_search_keyboard(current_values, options)
+
+    try:
+        await query.edit_message_text(SETTING_TITLES[SETTING_AUX_SEARCH], reply_markup=reply_markup)
+    except BadRequest as e:
+        if "Message is not modified" not in str(e):
+            raise e
+
+    logger.log_user_action(query.from_user, f"toggled search: {search_value}={current_search}")
+
+
 # ===== РАБОТА В ГРУППЕ =====
 
 async def handle_group_message(update: Update, context: CallbackContext):
@@ -1315,10 +1410,14 @@ async def handle_group_search(update: Update, context: CallbackContext):
         # Получаем или создаем настройки пользователя
         user_params = DB_SETTINGS.get_user_settings(user.id)
         context.user_data[USER_PARAMS] = user_params
+        rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+        aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
+        search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA, False)  # Дополнительный поиск по аннотации книг
 
         # Выполняем поиск книг
         books, found_books_count = DB_BOOKS.search_books(
-            clean_query_text, user_params.Lang, user_params.DateSortOrder, '', ''
+            clean_query_text, user_params.Lang, user_params.DateSortOrder, user_params.MaxBooks, rating_filter,
+            search_annotation = search_annotation
         )
 
         # Удаляем сообщение "Ищу книги..."
@@ -1329,6 +1428,7 @@ async def handle_group_search(update: Update, context: CallbackContext):
             page = 0
 
             keyboard = create_books_keyboard(page, pages_of_books)
+            add_close_button(keyboard)
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             if reply_markup:
@@ -1690,13 +1790,16 @@ async def handle_search_authors(update: Update, context: CallbackContext):
 
     size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
     rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+    aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
+    search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA,False) # Дополнительный поиск по аннотации книг
     user_params = DB_SETTINGS.get_user_settings(user.id)
     context.user_data[USER_PARAMS] = user_params
     context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_AUTHORS  # Сохраняем контекст
 
     # Ищем авторов
     authors, found_authors_count = DB_BOOKS.search_authors(
-        query_text, user_params.Lang, size_limit, rating_filter
+        query_text, user_params.Lang, size_limit, rating_filter,
+        search_annotation = search_annotation
     )
 
     if authors or found_authors_count > 0:
@@ -1706,6 +1809,7 @@ async def handle_search_authors(update: Update, context: CallbackContext):
 
         page = 0
         keyboard = create_authors_keyboard(page, pages_of_authors)
+        add_close_button(keyboard)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
@@ -1737,13 +1841,16 @@ async def handle_search_author_books(query, context, action, params):
         user_params = DB_SETTINGS.get_user_settings(user.id)
         size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
         rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+        aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
+        search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA, False)  # Дополнительный поиск по аннотации книг
 
         # Ищем книги автора в комбинации с предыдущим запросом
         query_text = f"{context.user_data['authors_search_query']}"
 
         books, found_books_count = DB_BOOKS.search_books(
             query_text, user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter,
-            author_id = author_id # Добавляем ограничение по автору для поиска книг выбранного автора
+            author_id = author_id, # Добавляем ограничение по автору для поиска книг выбранного автора
+            search_annotation = search_annotation
         )
 
         if books:

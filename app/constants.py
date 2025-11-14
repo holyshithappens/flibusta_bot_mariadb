@@ -35,6 +35,8 @@ SETTING_BOOK_FORMAT = 'book_format'
 SETTING_SEARCH_TYPE = 'search_type'
 # Константа для типа настройки рейтинга
 SETTING_RATING_FILTER = 'rating_filter'
+SETTING_AUX_SEARCH = 'aux_search'
+SETTING_AUX_SEARCH_BA = 'ba'
 
 # Словарь соответствия setting_type -> заголовок
 SETTING_TITLES = {
@@ -44,7 +46,8 @@ SETTING_TITLES = {
     SETTING_SIZE_LIMIT: 'Ограничение на размер книг',
     SETTING_BOOK_FORMAT: 'Формат скачивания книг',
     SETTING_SEARCH_TYPE: 'Вывод результатов',
-    SETTING_RATING_FILTER: 'Фильтр по рейтингу'
+    SETTING_RATING_FILTER: 'Фильтр по рейтингу',
+    SETTING_AUX_SEARCH: 'Переключение поиска'
 }
 
 # Словарь опций для настроек
@@ -79,6 +82,9 @@ SETTING_OPTIONS = {
         (3, '🟡 Неплохо (3)'),
         (4, '🟢 Хорошо (4)'),
         (5, '🔵 Отлично (5)')
+    ],
+    SETTING_AUX_SEARCH: [
+        (SETTING_AUX_SEARCH_BA, 'На аннотацию книги')
     ]
 }
 

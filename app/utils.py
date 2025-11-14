@@ -210,7 +210,7 @@ def format_book_details(book_details):
     if book_details.get('annotation'):
         # Очищаем HTML теги для телеграма
         clean_annotation = clean_html_tags(book_details['annotation'])
-        text += f"{clean_annotation[:4095]}" + ("..." if len(clean_annotation) > 4095 else "")
+        text += f"{clean_annotation[:4000]}" + ("..." if len(clean_annotation) > 4000 else "")
 
     return text
 
@@ -220,7 +220,7 @@ def format_author_info(author_info):
     text = f"👤 <b>Об авторе:</b> {author_info['name']}\n\n"
     if author_info.get('biography'):
         clean_bio = clean_html_tags(author_info['biography'])
-        text += f"{clean_bio[:4095]}" + ("..." if len(clean_bio) > 4095 else "")
+        text += f"{clean_bio[:4000]}" + ("..." if len(clean_bio) > 4000 else "")
 
     return text
 

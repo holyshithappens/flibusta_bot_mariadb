@@ -13,9 +13,8 @@ Book = namedtuple('Book', ['FileName', 'Title', 'LastName', 'FirstName', 'Middle
 UserSettings = namedtuple('UserSettings',['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate', 'IsBlocked'])
 
 # SQL-запросы
-SQL_QUERY_BOOKS = """
-select * from (
-SELECT 
+# Базовые поля для SELECT
+BASE_FIELDS = """
     b.BookID as FileName,
     upper(b.Lang) as SearchLang,
     b.Title,
@@ -32,26 +31,50 @@ SELECT
     end as BookSizeCat,  
     sn.SeqName as SeriesTitle, 
     sn.SeqId as SeriesID, 
-    b.Year as SearchYear, 
-    MATCH(fts.FT) AGAINST(%s IN BOOLEAN MODE) as Relevance
-FROM libbook_fts fts
-JOIN libbook b ON b.BookID = fts.BookID
+    b.Year as SearchYear
+"""
+
+# Базовые JOIN (БЕЗ FROM)
+BASE_JOINS = """
 LEFT JOIN libavtor a ON a.BookID = b.BookID
 LEFT JOIN libavtorname an ON a.AvtorID = an.AvtorID
 LEFT JOIN libgenre g ON g.BookID = b.BookID
 LEFT JOIN libgenrelist gl ON g.GenreID = gl.GenreID
 LEFT JOIN libseq s ON s.BookID = b.BookID
-left join libseqname sn on s.SeqID = sn.SeqID
+LEFT JOIN libseqname sn on s.SeqID = sn.SeqID
 LEFT JOIN (
     SELECT BookId, AVG(CAST(Rate AS SIGNED)) as LibRate
     FROM librate 
     GROUP BY BookId
 ) r ON r.BookId = b.BookId
+"""
+
+# Основной полнотекстовый поиск
+SQL_QUERY_BOOKS = f"""
+select * from (
+SELECT 
+    {BASE_FIELDS},
+    MATCH(fts.FT) AGAINST(%s IN BOOLEAN MODE) as Relevance
+FROM libbook_fts fts
+JOIN libbook b ON b.BookID = fts.BookID
+{BASE_JOINS}
 WHERE b.Deleted = '0'
   AND MATCH(fts.FT) AGAINST(%s IN BOOLEAN MODE)
--- ORDER BY relevance DESC
--- LIMIT 2000
 ) as subq 
+"""
+
+# Поиск по аннотациям
+SQL_QUERY_ABOOKS = f"""
+select * from (
+SELECT 
+    {BASE_FIELDS},
+    MATCH(ba.Body) AGAINST(%s IN BOOLEAN MODE) as Relevance
+FROM libbannotations ba
+JOIN libbook b ON b.BookID = ba.BookID
+{BASE_JOINS}
+WHERE b.Deleted = '0'
+  AND MATCH(ba.Body) AGAINST(%s IN BOOLEAN MODE)
+) as subq2
 """
 
 SQL_QUERY_PARENT_GENRES_COUNT = """
@@ -699,11 +722,18 @@ class DatabaseBooks():
         return DatabaseBooks._class_cached_langs
 
 
-    def search_books(self, query, lang, sort_order, size_limit, rating_filter=None, series_id=0, author_id=0):
+    def search_books(self, query, lang, sort_order, size_limit, rating_filter=None, series_id=0, author_id=0, search_annotation=False):
         """Ищем книги по запросу пользователя"""
-        sql_where, params = self.build_sql_where_ft(query, lang, size_limit, rating_filter, series_id, author_id)
+        sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter, series_id, author_id)
         # Строим запросы для поиска книг и подсчёта количества найденных книг
-        sql_query, sql_query_cnt = self.build_sql_queries_ft(sql_where, sort_order)
+        sql_query, sql_query_cnt = self.build_sql_queries_ft(sql_where, sort_order, search_annotation)
+
+        params = []
+        # Пара одинаковых параметров в виде полного запроса для FullText поиска
+        params.extend([query] * 2)
+        # if search_annotation:
+        #     # ещё пара тех же параметров для расширенного поиска по аннотациям
+        #     params.extend([query] * 2)
 
         # #DEBUG
         # print(f"DEBUG: sql_query = {sql_query}")
@@ -784,9 +814,13 @@ class DatabaseBooks():
             } if annotation_result else None
 
 
-    def search_series(self, query, lang, size_limit, rating_filter=None):
+    def search_series(self, query, lang, size_limit, rating_filter=None, search_annotation=False):
         """Ищет серии по запросу"""
-        sql_where, params = self.build_sql_where_ft(query, lang, size_limit, rating_filter)
+        sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
+
+        params = []
+        # Пара одинаковых параметров в виде полного запроса для FullText поиска
+        params.extend([query] * 2)
 
         # запрос для поиска серий
         sql_query = f"""
@@ -794,7 +828,7 @@ class DatabaseBooks():
             SeriesTitle, 
             SeriesID,
             COUNT(DISTINCT FileName) as book_count
-        FROM ({SQL_QUERY_BOOKS} {sql_where}
+        FROM ({SQL_QUERY_ABOOKS if search_annotation else SQL_QUERY_BOOKS} {sql_where}
           ORDER BY relevance DESC) as subquery
         WHERE SeriesTitle IS NOT NULL
         GROUP BY SeriesTitle, SeriesID 
@@ -886,9 +920,13 @@ class DatabaseBooks():
             return cursor.fetchall()
 
 
-    def search_authors(self, query, lang, size_limit, rating_filter=None):
+    def search_authors(self, query, lang, size_limit, rating_filter=None, search_annotation=False):
         """Ищет авторов по запросу"""
-        sql_where, params = self.build_sql_where_ft(query, lang, size_limit, rating_filter)
+        sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
+
+        params = []
+        # Пара одинаковых параметров в виде полного запроса для FullText поиска
+        params.extend([query] * 2)
 
         # Модифицируем запрос для поиска авторов
         sql_query = f"""
@@ -896,7 +934,7 @@ class DatabaseBooks():
             CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, '')) as AuthorName,
             COUNT(DISTINCT FileName) as book_count,
             AuthorID
-        FROM ({SQL_QUERY_BOOKS} {sql_where}) as subquery
+        FROM ({SQL_QUERY_ABOOKS if search_annotation else SQL_QUERY_BOOKS} {sql_where}) as subquery
         WHERE LastName <> '' OR FirstName <> '' OR MiddleName <> ''
         GROUP BY AuthorName, AuthorID
         ORDER BY book_count DESC, AuthorName
@@ -916,13 +954,13 @@ class DatabaseBooks():
 
 
     @staticmethod
-    def build_sql_where_ft(query, lang, size_limit, rating_filter=None, series_id=0, author_id=0):
+    def build_sql_where_ft(lang, size_limit, rating_filter=None, series_id=0, author_id=0):
         """Создает SQL-условие WHERE на основе списка слов и их операторов."""
         conditions = []
-        params = []
 
-        # Пара одинаковых параметров в виде полного запроса для FullText поиска
-        params.extend([query] * 2)
+        # params = []
+        # # Пара одинаковых параметров в виде полного запроса для FullText поиска
+        # params.extend([query] * 2)
 
         # Добавляем условие по языку, если задан в настройках пользователя
         if lang:
@@ -933,12 +971,15 @@ class DatabaseBooks():
             conditions.append(f"BookSizeCat = '{size_limit}'")
 
         # ДОБАВЛЯЕМ ФИЛЬТРАЦИЮ ПО РЕЙТИНГУ
+        # if rating_filter and rating_filter != '':
+        #     rating_values = [r.strip() for r in rating_filter.split(',') if r.strip()]
+        #     if rating_values:
+        #         rating_condition = f"LibRate IN ({', '.join(['%s'] * len(rating_values))})"
+        #         conditions.append(rating_condition)
+        #         params.extend(rating_values)
         if rating_filter and rating_filter != '':
-            rating_values = [r.strip() for r in rating_filter.split(',') if r.strip()]
-            if rating_values:
-                rating_condition = f"LibRate IN ({', '.join(['%s'] * len(rating_values))})"
-                conditions.append(rating_condition)
-                params.extend(rating_values)
+            rating_condition = f"LibRate IN ({rating_filter})"
+            conditions.append(rating_condition)
 
         # Добавляем условие по серии в поиске книг по сериям
         if series_id != 0:
@@ -950,27 +991,48 @@ class DatabaseBooks():
 
         # в соновном sql вконце уже есть where, поэтому заменяем его на and
         sql_where = "WHERE " + " AND ".join(conditions) if conditions else ""
-        return sql_where, params
+        return sql_where #, params
 
 
     @staticmethod
-    def build_sql_queries_ft(sql_where, sort_order='desc'):
+    def build_sql_queries_ft(sql_where, sort_order='desc', search_annotation=False):
         fields = Book._fields
-        processed_fields = [fields[0]] + [f"max({field})" for field in fields[1:]]
+
+        # Всегда используем sum для Relevance
+        processed_fields = []
+        for field in fields:
+            # if field == 'Relevance':
+            #     processed_fields.append(f"sum({field}) as {field}")
+            # else:
+            processed_fields.append(f"max({field})")
+
         select_fields = ', '.join(processed_fields)
+
+        if search_annotation:
+            # Добавляем UNION ALL если нужен поиск по аннотациям
+            # from_clause = f"""
+            #     FROM (
+            #         {SQL_QUERY_BOOKS} {sql_where}
+            #         UNION ALL
+            #         {SQL_QUERY_ABOOKS} {sql_where}
+            #     ) as subquery
+            # """
+            from_clause = f"FROM ( {SQL_QUERY_ABOOKS} {sql_where} ) as subquery"
+        else:
+            # Базовый FROM для обычного поиска
+            from_clause = f"FROM ( {SQL_QUERY_BOOKS} {sql_where} ) as subquery"
 
         sql_query = f"""
             SELECT {select_fields} 
-            FROM ( {SQL_QUERY_BOOKS} {sql_where} 
-                -- ORDER BY relevance DESC, FileName {sort_order}
-                ) as subquery
+            {from_clause}
             GROUP BY {fields[0]}
-            ORDER BY relevance DESC, FileName {sort_order}
+            ORDER BY Relevance DESC, FileName {sort_order}
             LIMIT {MAX_BOOKS_SEARCH}
         """
+
         sql_query_cnt = f"""
             SELECT COUNT(*) 
-            FROM (SELECT {select_fields} FROM ({SQL_QUERY_BOOKS} {sql_where}) as subquery1 GROUP BY {fields[0]}) as subquery2
+            FROM (SELECT {select_fields} {from_clause} GROUP BY {fields[0]}) as subquery2
         """
-        return sql_query, sql_query_cnt
 
+        return sql_query, sql_query_cnt
