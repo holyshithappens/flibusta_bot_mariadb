@@ -84,7 +84,7 @@ SETTING_OPTIONS = {
         (5, '🔵 Отлично (5)')
     ],
     SETTING_AUX_SEARCH: [
-        (SETTING_AUX_SEARCH_BA, 'На аннотацию книги')
+        (SETTING_AUX_SEARCH_BA, 'На аннотацию книг')
     ]
 }
 
