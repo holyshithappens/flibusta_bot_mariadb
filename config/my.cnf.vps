@@ -5,14 +5,14 @@ collation-server=utf8mb3_unicode_ci
 skip-character-set-client-handshake
 
 # Full-text search
-ft_min_word_len=3
-innodb_ft_min_token_size=3
+ft_min_word_len=4
+innodb_ft_min_token_size=4
 
 # Performance
 # 128M
-innodb-buffer-pool-size=1G
+innodb-buffer-pool-size=256M
 # 32M
-innodb-log-file-size=512M
+innodb-log-file-size=64M
 key-buffer-size=32M
 max-connections=100
 query-cache-size=0
