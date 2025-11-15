@@ -176,30 +176,32 @@ async def get_latest_news(file_path: str, count: int = 3) -> List[Dict[str, Any]
 
 def format_book_info(book_info):
     """Форматирует информацию о книге для сообщения"""
-    text = f"📚 <b>{book_info['title']}</b>\n\n"
+    text = f"📚 <b>{book_info['title']}</b>\n"
     authors = book_info['authors'][:300] + ("..." if len(book_info['authors']) > 300 else "")
-    text += f"👤 <b>Автор(ы):</b> {authors or 'Не указаны'}\n"
+    text += f"\n👤 <b>Автор(ы):</b> {authors or 'Не указаны'}"
     year = book_info['year']
     series = book_info['series']
     genre = book_info['genre']
     lang = book_info['lang']
     pages = book_info['pages']
     rate = book_info['rate']
+    bookid = book_info['bookid']
     if year and year != 0:
-        text += f"📅 <b>Год:</b> {year}\n"
+        text += f"\n📅 <b>Год:</b> {year}"
     if series:
-        text += f"📖 <b>Серия:</b> {series}\n"
+        text += f"\n📖 <b>Серия:</b> {series}"
     if genre:
-        text += f"📑 <b>Жанр(ы):</b> {genre}\n"
+        text += f"\n📑 <b>Жанр(ы):</b> {genre}"
     if lang:
-        text += f"🗣️ <b>Язык:</b> {lang}\n"
+        text += f"\n🗣️ <b>Язык:</b> {lang}"
     if pages:
-        text += f"📃 <b>Страниц:</b> {pages}\n"
+        text += f"\n📃 <b>Страниц:</b> {pages}"
     size = format_size(book_info['size'])
-    text += f"📦 <b>Размер:</b> {size}\n"
+    text += f"\n📦 <b>Размер:</b> {size}"
     if rate:
-        text += f"⭐ <b>Рейтинг:</b> {rate:.1f}"
-
+        text += f"\n⭐ <b>Рейтинг:</b> {rate:.1f}"
+    if bookid:
+        text += f"\n🔑 <b>ID</b> <a href='{FLIBUSTA_BASE_URL}/b/{bookid}'>{bookid}</a>"
     return text
 
 

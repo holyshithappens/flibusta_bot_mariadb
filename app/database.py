@@ -759,7 +759,7 @@ class DatabaseBooks():
                 SELECT b.Title, b.Year, sn.SeqName,
                        GROUP_CONCAT(DISTINCT gl.GenreDesc SEPARATOR ', ') as Genres,
                        GROUP_CONCAT(DISTINCT CONCAT(an.LastName, ' ', an.FirstName) SEPARATOR ', ') as Authors,
-                       bp.File, b.FileSize, b.Pages, b.Lang, r.LibRate
+                       bp.File, b.FileSize, b.Pages, b.Lang, r.LibRate, b.BookId
                 FROM libbook b
                 LEFT JOIN libavtor a ON a.BookID = b.BookID
                 LEFT JOIN libavtorname an ON a.AvtorID = an.AvtorID
@@ -797,6 +797,7 @@ class DatabaseBooks():
                 'pages': result[7],
                 'lang': result[8],
                 'rate': result[9],
+                'bookid': result[10],
             } if result else None
 
     async def get_book_details(self, book_id):
