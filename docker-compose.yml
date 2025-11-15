@@ -1,0 +1,63 @@
+# docker-compose.yml
+#version: '3.8'
+
+services:
+  db:
+    image: mariadb:12.0
+    container_name: flibusta-db
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootpassword}
+      - MYSQL_DATABASE=${DB_NAME:-flibusta}
+      - MYSQL_USER=${DB_USER:-flibusta}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-flibusta}
+      - TZ=Europe/Moscow
+#    command:
+#      - --bind-address=0.0.0.0
+#      - --character-set-server=utf8mb3
+#      - --collation-server=utf8mb3_unicode_ci
+#      - --skip-character-set-client-handshake
+      # ПРАВИЛЬНЫЕ опции для отключения SSL в MariaDB 12.0
+#      - --skip-ssl
+#      - --ssl=0
+    ports:
+      - "3306:3306" # Для разработки открываем порт 3306
+#    deploy:
+#      resources:
+#        limits:
+#          memory: 1G
+#          cpus: '0.8'
+    volumes:
+      - mariadb_data:/var/lib/mysql  # Тот же volume
+      - ./db_init:/docker-entrypoint-initdb.d:ro
+      - ./config/my.cnf:/etc/mysql/conf.d/custom.cnf:ro  # ✅ Монтируем конфиг
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+#  bot:
+#    image: holyshithappens/flbst-bot-mdb
+#    container_name: flibusta-bot
+#    restart: unless-stopped
+#    env_file: .env
+#    environment:
+#      - BOT_TOKEN=${BOT_TOKEN}
+#      - DB_HOST=db
+#    deploy:
+#      resources:
+#        limits:
+#          memory: 256M
+#          cpus: '0.4'
+#    volumes:
+#      - ./data:/app/data
+#      - ./logs:/app/logs
+#    depends_on:
+#      db:
+#        condition: service_healthy
+#    user: "1000:1000"
+
+volumes:
+  mariadb_data:
