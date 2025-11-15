@@ -56,7 +56,7 @@ EOF
 
     scp .env.vps $VPS_USER@$VPS_IP:$VPS_PATH/.env
     scp config/my.cnf.vps $VPS_USER@$VPS_IP:$VPS_PATH/config/my.cnf
-    scp docker-compose.yml $VPS_USER@$VPS_IP:$VPS_PATH/docker-compose.yml
+    scp docker-compose.vps.yml $VPS_USER@$VPS_IP:$VPS_PATH/docker-compose.yml
 #    scp db_init/init_db.sh $VPS_USER@$VPS_IP:$VPS_PATH/db_init/init_db.sh
 
     echo "✅ Directories and files setup completed"
