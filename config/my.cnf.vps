@@ -5,8 +5,8 @@ collation-server=utf8mb3_unicode_ci
 skip-character-set-client-handshake
 
 # Full-text search
-ft_min_word_len=3
-innodb_ft_min_token_size=3
+ft-min-word-len=3
+innodb-ft-min-token-size=3
 #innodb-ft-cache-size=64M #8000000
 #innodb-ft-total-cache-size=256M # 640000000
 
