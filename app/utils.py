@@ -33,17 +33,16 @@ def format_size(size_in_bytes):
     return f"{size_in_bytes:.1f}{units[unit_index]}"
 
 
-def form_header_books(page, max_books, found_count, search_type='книг', series_name=None, author_name=None):
+def form_header_books(page, max_books, found_count, search_type='книг', series_name=None, author_name=None, search_annotation=False):
     """ Оформление заголовка сообщения с результатом поиска книг """
     start = max_books * page + 1
     end = min(max_books * (page + 1), found_count)
 
     header = f"Показываю с {start} по {end} из {found_count} найденных {search_type}"
 
-    if series_name:
-        header += f" в серии '{series_name}'"
-    if author_name:
-        header += f" автора '{author_name}'"
+    header += f" в серии '{series_name}'" if series_name else ""
+    header += f" автора '{author_name}'" if author_name else ""
+    header += " по аннотации книги" if search_annotation else ""
 
     return header
 
