@@ -457,7 +457,12 @@ async def handle_search_books(update: Update, context: CallbackContext):
         context.user_data[FOUND_BOOKS_COUNT] = found_books_count
         context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
     else:
-        result_message = await message.reply_text("😞 Не нашёл подходящих книг. Попробуйте другие критерии поиска")
+        search_annotation_text = "ВКЛЮЧЕН" if search_annotation else "ВЫКЛЮЧЕН"
+        result_message = await message.reply_text(
+            "😞 Не нашёл подходящих книг. Попробуйте другие критерии поиска." 
+            f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
+            parse_mode=ParseMode.HTML
+        )
 
     # СОХРАНЯЕМ ID СООБЩЕНИЯ С РЕЗУЛЬТАТАМИ И ЗАПРОС
     context.user_data['last_bot_message_id'] = result_message.message_id
