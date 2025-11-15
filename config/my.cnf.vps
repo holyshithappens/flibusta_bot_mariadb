@@ -7,20 +7,22 @@ skip-character-set-client-handshake
 # Full-text search
 ft_min_word_len=4
 innodb_ft_min_token_size=4
+#innodb-ft-cache-size=64M #8000000
+#innodb-ft-total-cache-size=256M # 640000000
 
 # Performance
-# 128M
-innodb-buffer-pool-size=256M
-# 32M
-innodb-log-file-size=64M
-key-buffer-size=32M
-max-connections=100
-query-cache-size=0
-tmp-table-size=16M
-max-heap-table-size=16M
-table-open-cache=1000
-thread-cache-size=8
-performance-schema=ON
+#innodb-buffer-pool-size=384M # 128M
+#innodb-log-file-size=64M # 96M
+#innodb-online-alter-log-max-size=64M # 128M
+#innodb-sort-buffer-size=16M # 1M
+#key-buffer-size=32M # 128M
+#max-heap-table-size=32M # 16M
+#max-connections=100 # 151
+#query-cache-size=0 # 1M
+#performance-schema=ON # OFF
+#table-open-cache=1000 # 2000
+#tmp-table-size=32M # 16M
+#thread-cache-size=8 # 151
 
 # Network and security
 #bind-address=0.0.0.0

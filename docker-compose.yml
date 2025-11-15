@@ -20,12 +20,12 @@ services:
       # ПРАВИЛЬНЫЕ опции для отключения SSL в MariaDB 12.0
 #      - --skip-ssl
 #      - --ssl=0
-    ports:
-      - "3306:3306"
+#    ports:
+#      - "3306:3306"
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1G
           cpus: '0.8'
     volumes:
       - mariadb_data:/var/lib/mysql  # Тот же volume
