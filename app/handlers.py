@@ -347,7 +347,7 @@ async def handle_back_to_series(query, context, action, params):
         if reply_markup:
             found_series_count = context.user_data.get(FOUND_SERIES_COUNT)
             user_params = context.user_data.get(USER_PARAMS)
-            aux_search = context.user_data.get(SETTING_AUX_SEARCH, Dict[Any])
+            aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
             search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA, False)  # Дополнительный поиск по аннотации книг
             header_found_text = form_header_books(
                 page_num, user_params.MaxBooks, found_series_count, 'серий',
@@ -424,7 +424,7 @@ async def handle_search_books(update: Update, context: CallbackContext):
 
     size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
     rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-    aux_search = context.user_data.get(SETTING_AUX_SEARCH, Dict[Any])
+    aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
     search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA,False) # Дополнительный поиск по аннотации книг
     user_params = DB_SETTINGS.get_user_settings(user.id)
     context.user_data[USER_PARAMS] = user_params
@@ -883,7 +883,7 @@ async def handle_page_change(query, context, action, params):
         if reply_markup:
             found_books_count = context.user_data.get(FOUND_BOOKS_COUNT)
             user_params = context.user_data.get(USER_PARAMS)
-            aux_search = context.user_data.get(SETTING_AUX_SEARCH, Dict[Any])
+            aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
             search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA, False)  # Дополнительный поиск по аннотации книг
             # Формируем заголовок в зависимости от контекста
             series_name = None
@@ -924,7 +924,7 @@ async def handle_series_page_change(query, context, action, params):
         if reply_markup:
             found_series_count = context.user_data.get(FOUND_SERIES_COUNT)
             user_params = context.user_data.get(USER_PARAMS)
-            aux_search = context.user_data.get(SETTING_AUX_SEARCH, Dict[Any])
+            aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
             search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA, False)  # Дополнительный поиск по аннотации книг
             header_found_text = form_header_books(
                 page, user_params.MaxBooks, found_series_count,
@@ -1570,7 +1570,7 @@ async def handle_group_page_change(query, context, action, params, user, search_
     if reply_markup:
         found_books_count = search_context.get(FOUND_BOOKS_COUNT)
         user_params = search_context.get(USER_PARAMS)
-        aux_search = context.user_data.get(SETTING_AUX_SEARCH, Dict[Any])
+        aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
         search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA, False)  # Дополнительный поиск по аннотации книг
 
         user_name = (user.first_name if user.first_name else "")
@@ -1938,7 +1938,7 @@ async def handle_back_to_authors(query, context, action, params):
         if reply_markup:
             found_authors_count = context.user_data.get(FOUND_AUTHORS_COUNT)
             user_params = context.user_data.get(USER_PARAMS)
-            aux_search = context.user_data.get(SETTING_AUX_SEARCH, Dict[Any])
+            aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
             search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA, False)  # Дополнительный поиск по аннотации книг
 
             header_found_text = form_header_books(
@@ -1973,7 +1973,7 @@ async def handle_authors_page_change(query, context, action, params):
         if reply_markup:
             found_authors_count = context.user_data.get(FOUND_AUTHORS_COUNT)
             user_params = context.user_data.get(USER_PARAMS)
-            aux_search = context.user_data.get(SETTING_AUX_SEARCH, Dict[Any])
+            aux_search = context.user_data.get(SETTING_AUX_SEARCH, {})
             search_annotation = aux_search.get(SETTING_AUX_SEARCH_BA, False)  # Дополнительный поиск по аннотации книг
 
             header_found_text = form_header_books(
