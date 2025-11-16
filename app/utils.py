@@ -201,7 +201,7 @@ def format_book_info(book_info):
     if rate:
         text += f"\n⭐ <b>Рейтинг:</b> {rate:.1f}"
     if bookid:
-        text += f"\n🔑 <b>ID</b> <a href='{FLIBUSTA_BASE_URL}/b/{bookid}'>{bookid}</a>"
+        text += f"\n🔑 <b>ID:</b> <a href='{FLIBUSTA_BASE_URL}/b/{bookid}'>{bookid}</a>"
     return text
 
 

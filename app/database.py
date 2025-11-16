@@ -11,7 +11,7 @@ from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, FLIBUSTA
 from utils import get_cover_url
 
 Book = namedtuple('Book', ['FileName', 'Title', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'BookSize', 'SearchYear', 'LibRate', 'SeriesTitle', 'Relevance'])
-UserSettings = namedtuple('UserSettings',['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate', 'IsBlocked'])
+UserSettings = namedtuple('UserSettings',['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate', 'IsBlocked', 'BookSize','SearchType', 'Rating', 'SearchArea'])
 
 # SQL-запросы
 # Базовые поля для SELECT
@@ -820,7 +820,7 @@ class DatabaseBooks():
             } if annotation_result else None
 
 
-    def search_series(self, query, lang, size_limit, rating_filter=None, search_annotation=False):
+    def search_series(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B):
         """Ищет серии по запросу"""
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
 
@@ -834,7 +834,7 @@ class DatabaseBooks():
             SeriesTitle, 
             SeriesID,
             COUNT(DISTINCT FileName) as book_count
-        FROM ({SQL_QUERY_ABOOKS if search_annotation else SQL_QUERY_BOOKS} {sql_where}
+        FROM ({SQL_QUERY_ABOOKS if search_area == SETTING_SEARCH_AREA_BA else SQL_QUERY_BOOKS} {sql_where}
           ORDER BY relevance DESC) as subquery
         WHERE SeriesTitle IS NOT NULL
         GROUP BY SeriesTitle, SeriesID 
@@ -926,7 +926,7 @@ class DatabaseBooks():
             return cursor.fetchall()
 
 
-    def search_authors(self, query, lang, size_limit, rating_filter=None, search_annotation=False):
+    def search_authors(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B):
         """Ищет авторов по запросу"""
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
 
@@ -940,7 +940,7 @@ class DatabaseBooks():
             CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, '')) as AuthorName,
             COUNT(DISTINCT FileName) as book_count,
             AuthorID
-        FROM ({SQL_QUERY_ABOOKS if search_annotation else SQL_QUERY_BOOKS} {sql_where}) as subquery
+        FROM ({SQL_QUERY_ABOOKS if search_area == SETTING_SEARCH_AREA_BA else SQL_QUERY_BOOKS} {sql_where}) as subquery
         WHERE LastName <> '' OR FirstName <> '' OR MiddleName <> ''
         GROUP BY AuthorName, AuthorID
         ORDER BY book_count DESC, AuthorName

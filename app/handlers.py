@@ -11,7 +11,8 @@ from database import DatabaseBooks, DatabaseSettings
 from constants import FLIBUSTA_BASE_URL, DEFAULT_BOOK_FORMAT, \
     SETTING_MAX_BOOKS, SETTING_LANG_SEARCH, SETTING_SORT_ORDER, SETTING_SIZE_LIMIT, \
     SETTING_BOOK_FORMAT, SETTING_SEARCH_TYPE, SETTING_OPTIONS, SETTING_TITLES, SETTING_RATING_FILTER, BOOK_RATINGS, \
-    BOT_NEWS_FILE_PATH, SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA
+    BOT_NEWS_FILE_PATH, SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA, SEARCH_TYPE_BOOKS, \
+    SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS
 from health import log_stats
 from utils import format_size, get_platform_recommendations, download_book_with_filename, upload_to_tmpfiles, \
     is_message_for_bot, extract_clean_query, get_latest_news, format_book_reviews, format_author_info, \
@@ -35,10 +36,7 @@ BOOKS = 'BOOKS'
 PAGES_OF_BOOKS = 'PAGES_OF_BOOKS'
 FOUND_BOOKS_COUNT = 'FOUND_BOOKS_COUNT'
 
-SEARCH_CONTEXT = 'SEARCH_CONTEXT'
-SEARCH_TYPE_BOOKS = 'books'
-SEARCH_TYPE_SERIES = 'series'
-SEARCH_TYPE_AUTHORS = 'authors'
+# SEARCH_CONTEXT = 'SEARCH_CONTEXT'
 
 SERIES = 'SERIES'
 PAGES_OF_SERIES = 'PAGES_OF_SERIES'
@@ -75,7 +73,7 @@ def create_books_keyboard(page, pages_of_books, search_context=SEARCH_TYPE_BOOKS
                     text += f"/{str(book.SearchYear)}"
                 keyboard.append([InlineKeyboardButton(
                     text,
-                    callback_data = f"book_info:folder:{book.FileName}:fb2"
+                    callback_data = f"book_info:{book.FileName}"
                 )])
 
             # Добавляем кнопки для навигации
@@ -138,7 +136,7 @@ async def edit_or_reply_message(query, text, reply_markup=None):
         await query.message.reply_text(text, reply_markup=reply_markup)
 
 
-async def process_book_download(query, book_id, book_format, file_name, file_ext, for_user=None):
+async def process_book_download(query, book_id, book_format, file_name, for_user=None):
     """Обрабатывает скачивание и отправку книги"""
     processing_msg = await query.message.reply_text(
         "⏰ <i>Ожидайте, отправляю книгу"+(f" для {for_user.first_name}" if for_user else "")+"...</i>",
@@ -168,7 +166,7 @@ async def process_book_download(query, book_id, book_format, file_name, file_ext
         return public_filename
 
     except TimedOut:
-        await handle_timeout_error(processing_msg, book_data, file_name, file_ext, query)
+        await handle_timeout_error(processing_msg, book_data, file_name, book_format, query)
     except Exception as e:
         """Обрабатывает ошибку загрузки"""
         print(f"Общая ошибка при отправке книги: {e}")
@@ -188,7 +186,7 @@ async def handle_timeout_error(processing_msg, book_data, file_name, file_ext, q
     )
 
     try:
-        download_url = await upload_to_tmpfiles(book_data, f"{file_name}{file_ext}")
+        download_url = await upload_to_tmpfiles(book_data, f"{file_name}.{file_ext}")
         if download_url:
             direct_download_url = download_url.replace(
                 "https://tmpfiles.org/",
@@ -217,9 +215,9 @@ async def start_cmd(update: Update, context: CallbackContext):
     """Обработка команды /start с deep linking"""
     user = update.effective_user
 
-    # Сохраняем настройки пользователя
-    user_params = DB_SETTINGS.get_user_settings(user.id)
-    context.user_data[USER_PARAMS] = user_params
+    # # Сохраняем настройки пользователя
+    # user_params = DB_SETTINGS.get_user_settings(user.id)
+    # context.user_data[USER_PARAMS] = user_params
 
     #Вывод приглашения и помощи по поиску книг
     welcome_text = """
@@ -236,9 +234,9 @@ async def start_cmd(update: Update, context: CallbackContext):
     """
     await update.message.reply_text(welcome_text, parse_mode='HTML', disable_web_page_preview=True)
 
-    # user = update.message.from_user
-    user_params = DB_SETTINGS.get_user_settings(user.id)
-    context.user_data[USER_PARAMS] = user_params
+    # # user = update.message.from_user
+    # user_params = DB_SETTINGS.get_user_settings(user.id)
+    # context.user_data[USER_PARAMS] = user_params
 
     await log_stats(context)
 
@@ -347,7 +345,9 @@ async def handle_back_to_series(query, context, action, params):
         if reply_markup:
             found_series_count = context.user_data.get(FOUND_SERIES_COUNT)
             user_params = context.user_data.get(USER_PARAMS)
-            search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Область поиска
+            # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Область поиска
+            search_area = user_params.SearchArea
+
             header_found_text = form_header_books(
                 page_num, user_params.MaxBooks, found_series_count, 'серий',
                 search_area=search_area
@@ -375,13 +375,17 @@ async def handle_message(update: Update, context: CallbackContext):
     """Обрабатывает текстовые сообщения (поиск книг или серий)"""
     try:
         # Обрабатываем новый запрос
-        search_type = context.user_data.get(SETTING_SEARCH_TYPE, 'books')
-        if search_type == 'series':
-            await handle_search_series(update, context)
-        elif search_type == 'authors':  # Добавляем обработку поиска по авторам
-            await handle_search_authors(update, context)
-        else:
+        # search_type = context.user_data.get(SETTING_SEARCH_TYPE, 'books')
+        user = update.effective_message.from_user
+        user_params = DB_SETTINGS.get_user_settings(user.id)
+        search_type = user_params.SearchType
+
+        if search_type == SEARCH_TYPE_BOOKS:
             await handle_search_books(update, context)
+        elif search_type == SEARCH_TYPE_SERIES:
+            await handle_search_series(update, context)
+        elif search_type == SEARCH_TYPE_AUTHORS:  # Добавляем обработку поиска по авторам
+            await handle_search_authors(update, context)
 
     except Forbidden as e:
         if "bot was blocked by the user" in str(e):
@@ -421,16 +425,18 @@ async def handle_search_books(update: Update, context: CallbackContext):
         disable_notification=True
     )
 
-    size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
-    rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-    search_area = context.user_data.get(SETTING_SEARCH_AREA,SETTING_SEARCH_AREA_B) # Область поиска
+    # size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
+    # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+    # search_area = context.user_data.get(SETTING_SEARCH_AREA,SETTING_SEARCH_AREA_B) # Область поиска
+    # Извлекаем из БД настройки пользователя
     user_params = DB_SETTINGS.get_user_settings(user.id)
+    # Сохраняем настройки пользователя в его контексте
     context.user_data[USER_PARAMS] = user_params
-    context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_BOOKS  # Сохраняем контекст
+    # context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_BOOKS  # Сохраняем контекст
 
     books, found_books_count = DB_BOOKS.search_books(
-        query_text, user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter,
-        search_area=search_area
+        query_text, user_params.Lang, user_params.DateSortOrder, user_params.BookSize, user_params.Rating,
+        search_area=user_params.SearchArea
     )
 
     # Проверяем, найдены ли книги
@@ -446,7 +452,7 @@ async def handle_search_books(update: Update, context: CallbackContext):
         if reply_markup:
             header_found_text = form_header_books(
                 page, user_params.MaxBooks, found_books_count,
-                search_area=search_area
+                search_area=user_params.SearchArea
             )
             result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
 
@@ -455,7 +461,7 @@ async def handle_search_books(update: Update, context: CallbackContext):
         context.user_data[FOUND_BOOKS_COUNT] = found_books_count
         context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
     else:
-        search_annotation_text = "ВКЛЮЧЕН" if search_area == SETTING_SEARCH_AREA_BA else "ВЫКЛЮЧЕН"
+        search_annotation_text = "ВКЛЮЧЕН" if user_params.SearchArea == SETTING_SEARCH_AREA_BA else "ВЫКЛЮЧЕН"
         result_message = await message.reply_text(
             "😞 Не нашёл подходящих книг. Попробуйте другие критерии поиска." 
             f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
@@ -495,17 +501,17 @@ async def handle_search_series(update: Update, context: CallbackContext):
         disable_notification=True
     )
 
-    size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
-    rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-    search_area = context.user_data.get(SETTING_SEARCH_AREA,SETTING_SEARCH_AREA_B) # Дополнительный поиск по аннотации книг
+    # size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
+    # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+    # search_area = context.user_data.get(SETTING_SEARCH_AREA,SETTING_SEARCH_AREA_B) # Дополнительный поиск по аннотации книг
     user_params = DB_SETTINGS.get_user_settings(user.id)
     context.user_data[USER_PARAMS] = user_params
-    context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_SERIES  # Сохраняем контекст
+    # context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_SERIES  # Сохраняем контекст
 
     # Ищем серии
     series, found_series_count = DB_BOOKS.search_series(
-        query_text, user_params.Lang, size_limit, rating_filter,
-        search_area=search_area
+        query_text, user_params.Lang, user_params.BookSize, user_params.Rating,
+        search_area=user_params.SearchArea
     )
 
     if series or found_series_count > 0:
@@ -521,14 +527,14 @@ async def handle_search_series(update: Update, context: CallbackContext):
         if reply_markup:
             header_found_text = form_header_books(
                 page, user_params.MaxBooks, found_series_count, 'серий',
-                search_area=search_area
+                search_area=user_params.SearchArea
             )
             result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
 
         context.user_data[SERIES] = series
         context.user_data[PAGES_OF_SERIES] = pages_of_series
         context.user_data[FOUND_SERIES_COUNT] = found_series_count
-        context.user_data['series_search_query'] = query_text  # Сохраняем поисковый запрос
+        # context.user_data['series_search_query'] = query_text  # Сохраняем поисковый запрос
         context.user_data['last_series_page'] = page  # Сохраняем текущую страницу
         context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
     else:
@@ -548,19 +554,20 @@ async def handle_search_series_books(query, context, action, params):
 
         user = query.from_user
         user_params = DB_SETTINGS.get_user_settings(user.id)
-        size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
-        rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-        search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+        # size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
+        # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+        # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
 
         # Ищем книги серии в комбинации с предыдущим запросом
-        query_text = f"{context.user_data['series_search_query']}"
+        # query_text = f"{context.user_data['series_search_query']}"
+        query_text = f"{context.user_data['last_search_query']}"
 
         # print(f"DEBUG: query_text = {query_text}")
 
         books, found_books_count = DB_BOOKS.search_books(
-            query_text, user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter,
+            query_text, user_params.Lang, user_params.DateSortOrder, user_params.BookSize, user_params.Rating,
             series_id =series_id, #Добавляем ограничение по выбранной серии
-            search_area=search_area
+            search_area=user_params.SearchArea
         )
 
         if books:
@@ -582,7 +589,7 @@ async def handle_search_series_books(query, context, action, params):
 
                 header_text = form_header_books(
                     page, user_params.MaxBooks, found_books_count, 'книг', series_name,
-                    search_area=search_area
+                    search_area=user_params.SearchArea
                 )
                 await query.edit_message_text(header_text, reply_markup=reply_markup)
         else:
@@ -648,8 +655,8 @@ async def button_callback(update: Update, context: CallbackContext):
     """УНИВЕРСАЛЬНЫЙ обработчик callback-запросов"""
     query = update.callback_query
     user = query.from_user
-    user_params = DB_SETTINGS.get_user_settings(user.id)
-    context.user_data[USER_PARAMS] = user_params
+    # user_params = DB_SETTINGS.get_user_settings(user.id)
+    # context.user_data[USER_PARAMS] = user_params
 
     try:
         await query.answer()
@@ -750,14 +757,15 @@ async def handle_private_callback(query, context, action, params):
 
 async def handle_send_file(query, context, action, params, for_user = None):
     """Обрабатывает отправку файла"""
-    file_path, file_name, file_ext = params
+    # file_path, file_name, file_ext = params
+    file_name = params[0]
     book_id = file_name
     user_params = context.user_data.get(USER_PARAMS)
-    book_format = user_params.BookFormat or DEFAULT_BOOK_FORMAT
+    book_format = user_params.BookFormat if user_params else DEFAULT_BOOK_FORMAT
 
-    public_filename = await process_book_download(query, book_id, book_format, file_name, file_ext, for_user)
+    public_filename = await process_book_download(query, book_id, book_format, file_name, for_user)
 
-    log_detail = f"{file_name}{file_ext}"
+    log_detail = f"{file_name}.{book_format}"
     log_detail += ":" + public_filename if public_filename else ""
     logger.log_user_action(query.from_user, "send file", log_detail)
 
@@ -834,7 +842,9 @@ async def handle_set_sort_order(query, context, action, params):
 
 async def handle_set_size_limit(query, context, action, params):
     """Показывает настройки ограничения размера"""
-    current_value = context.user_data.get('size_limit', '')
+    # current_value = context.user_data.get('size_limit', '')
+    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    current_value = user_params.BookSize
 
     options = SETTING_OPTIONS[SETTING_SIZE_LIMIT]
     reply_markup = create_settings_keyboard(SETTING_SIZE_LIMIT, current_value, options)
@@ -857,7 +867,9 @@ async def handle_set_book_format(query, context, action, params):
 
 async def handle_set_search_type(query, context, action, params):
     """Показывает настройки типа поиска"""
-    current_value = context.user_data.get(SETTING_SEARCH_TYPE, 'books')
+    # current_value = context.user_data.get(SETTING_SEARCH_TYPE, 'books')
+    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    current_value = user_params.SearchType
 
     options = SETTING_OPTIONS[SETTING_SEARCH_TYPE]
     reply_markup = create_settings_keyboard(SETTING_SEARCH_TYPE, current_value, options)
@@ -870,14 +882,16 @@ async def handle_page_change(query, context, action, params):
     """Обрабатывает смену страницы с проверкой данных"""
     try:
         # Проверяем, что данные поиска еще существуют
-        if 'PAGES_OF_BOOKS' not in context.user_data or not context.user_data['PAGES_OF_BOOKS']:
+        if PAGES_OF_BOOKS not in context.user_data or not context.user_data[PAGES_OF_BOOKS]:
             await query.edit_message_text("❌ Сессия поиска истекла. Начните поиск заново.")
             return
 
         page = int(action.removeprefix('page_'))
         pages_of_books = context.user_data.get(PAGES_OF_BOOKS)
         # Определяем контекст поиска
-        search_context = context.user_data.get(SEARCH_CONTEXT, SEARCH_TYPE_BOOKS)
+        user_params = context.user_data.get(USER_PARAMS)
+        # search_context = context.user_data.get(SEARCH_CONTEXT, SEARCH_TYPE_BOOKS)
+        search_context = user_params.SearchType
         keyboard = create_books_keyboard(page, pages_of_books, search_context)
         if search_context == SEARCH_TYPE_AUTHORS:
             author_id = context.user_data['author_id']
@@ -887,15 +901,14 @@ async def handle_page_change(query, context, action, params):
 
         if reply_markup:
             found_books_count = context.user_data.get(FOUND_BOOKS_COUNT)
-            user_params = context.user_data.get(USER_PARAMS)
-            search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+            # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
             # Формируем заголовок в зависимости от контекста
             series_name = None
             if search_context == SEARCH_TYPE_SERIES:
                 series_name = context.user_data.get('current_series_name', None)
             header_text = form_header_books(
                 page, user_params.MaxBooks, found_books_count, 'книг', series_name,
-                search_area=search_area
+                search_area=user_params.SearchArea
             )
             await query.edit_message_text(header_text, reply_markup=reply_markup)
 
@@ -928,7 +941,9 @@ async def handle_series_page_change(query, context, action, params):
         if reply_markup:
             found_series_count = context.user_data.get(FOUND_SERIES_COUNT)
             user_params = context.user_data.get(USER_PARAMS)
-            search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+            # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+            search_area = user_params.SearchArea
+
             header_found_text = form_header_books(
                 page, user_params.MaxBooks, found_series_count,
                 search_area=search_area
@@ -971,7 +986,8 @@ async def handle_set_actions(query, context, action, params):
     elif action.startswith(f'set_{SETTING_SIZE_LIMIT}_to_'):
         setting_type = SETTING_SIZE_LIMIT
         new_value = action.removeprefix(f'set_{SETTING_SIZE_LIMIT}_to_')
-        context.user_data[SETTING_SIZE_LIMIT] = new_value
+        # context.user_data[SETTING_SIZE_LIMIT] = new_value
+        DB_SETTINGS.update_user_settings(user.id, booksize=new_value)
 
     elif action.startswith(f'set_{SETTING_BOOK_FORMAT}_to_'):
         setting_type = SETTING_BOOK_FORMAT
@@ -981,19 +997,21 @@ async def handle_set_actions(query, context, action, params):
     elif action.startswith(f'set_{SETTING_SEARCH_TYPE}_to_'):
         setting_type = SETTING_SEARCH_TYPE
         new_value = action.removeprefix(f'set_{SETTING_SEARCH_TYPE}_to_')
-        context.user_data[SETTING_SEARCH_TYPE] = new_value
+        # context.user_data[SETTING_SEARCH_TYPE] = new_value
+        DB_SETTINGS.update_user_settings(user.id, searchtype=new_value)
 
     elif action.startswith(f'set_{SETTING_SEARCH_AREA}_to_'):
         setting_type = SETTING_SEARCH_AREA
         new_value = action.removeprefix(f'set_{SETTING_SEARCH_AREA}_to_')
-        context.user_data[SETTING_SEARCH_AREA] = new_value
+        # context.user_data[SETTING_SEARCH_AREA] = new_value
+        DB_SETTINGS.update_user_settings(user.id, searcharea=new_value)
 
     else:
         return
 
     # Обновляем контекст пользователя
-    if setting_type != SETTING_SEARCH_TYPE and setting_type != SETTING_SIZE_LIMIT:
-        context.user_data[USER_PARAMS] = DB_SETTINGS.get_user_settings(user.id)
+    # if setting_type != SETTING_SEARCH_TYPE and setting_type != SETTING_SIZE_LIMIT:
+    #     context.user_data[USER_PARAMS] = DB_SETTINGS.get_user_settings(user.id)
 
     # Создаем обновленную клавиатуру
     if setting_type == 'lang_search':
@@ -1242,7 +1260,9 @@ def get_rating_emoji(rating):
 
 async def handle_set_rating_filter(query, context, action, params):
     """Показывает настройки фильтра по рейтингу"""
-    current_value = context.user_data.get(SETTING_RATING_FILTER, '')
+    # current_value = context.user_data.get(SETTING_RATING_FILTER, '')
+    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    current_value = user_params.Rating
 
     # Преобразуем текущее значение в список для отображения
     current_ratings = current_value.split(',') if current_value else []
@@ -1280,7 +1300,10 @@ def create_rating_filter_keyboard(current_ratings, options):
 async def handle_toggle_rating(query, context, action, params):
     """Обрабатывает переключение рейтинга в фильтре"""
     rating_value = action.removeprefix('toggle_rating_')
-    current_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+    # current_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+    user = query.from_user
+    user_params = DB_SETTINGS.get_user_settings(user.id)
+    current_filter = user_params.Rating
     current_ratings = current_filter.split(',') if current_filter else []
 
     if rating_value in current_ratings:
@@ -1292,7 +1315,8 @@ async def handle_toggle_rating(query, context, action, params):
 
     # Обновляем фильтр
     new_filter = ','.join(current_ratings)
-    context.user_data[SETTING_RATING_FILTER] = new_filter
+    # context.user_data[SETTING_RATING_FILTER] = new_filter
+    DB_SETTINGS.update_user_settings(user.id, rating=new_filter)
 
     # Обновляем клавиатуру
     options = SETTING_OPTIONS[SETTING_RATING_FILTER]
@@ -1309,7 +1333,9 @@ async def handle_toggle_rating(query, context, action, params):
 
 async def handle_reset_ratings(query, context, action, params):
     """Сбрасывает все выбранные рейтинги"""
-    context.user_data[SETTING_RATING_FILTER] = ''
+    # context.user_data[SETTING_RATING_FILTER] = ''
+    user = query.from_user
+    DB_SETTINGS.update_user_settings(user.id, rating='')
 
     # Обновляем клавиатуру
     options = SETTING_OPTIONS[SETTING_RATING_FILTER]
@@ -1323,7 +1349,9 @@ async def handle_reset_ratings(query, context, action, params):
 
 async def handle_set_search_area(query, context, action, params):
     """Показывает настройки дополнительного поиска"""
-    current_value = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)
+    # current_value = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)
+    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    current_value = user_params.SearchArea
 
     options = SETTING_OPTIONS[SETTING_SEARCH_AREA]
     reply_markup = create_settings_keyboard(SETTING_SEARCH_AREA, current_value, options)
@@ -1445,14 +1473,16 @@ async def handle_group_search(update: Update, context: CallbackContext):
 
         # Получаем или создаем настройки пользователя
         user_params = DB_SETTINGS.get_user_settings(user.id)
-        context.user_data[USER_PARAMS] = user_params
-        rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-        search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+        # context.user_data[USER_PARAMS] = user_params
+        # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+        # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+
+        print(f"DEBUG: clean_query_text = {clean_query_text}")
 
         # Выполняем поиск книг
         books, found_books_count = DB_BOOKS.search_books(
-            clean_query_text, user_params.Lang, user_params.DateSortOrder, user_params.MaxBooks, rating_filter,
-            search_area=search_area
+            clean_query_text, user_params.Lang, user_params.DateSortOrder, user_params.BookSize, user_params.Rating,
+            search_area=user_params.SearchArea
         )
 
         # Удаляем сообщение "Ищу книги..."
@@ -1471,7 +1501,7 @@ async def handle_group_search(update: Update, context: CallbackContext):
                 header_found_text = f"📚 Результаты поиска" + (f" для {user_name}" if user_name else "") + ":\n\n"
                 header_found_text += form_header_books(
                     page, user_params.MaxBooks, found_books_count,
-                    search_area=search_area
+                    search_area=user_params.SearchArea
                 )
 
                 # Отправляем результаты поиска
@@ -1539,12 +1569,10 @@ async def handle_group_callback(query, context, action, params, user):
     # Обрабатываем действия
     if action.startswith('page_'):
         await handle_group_page_change(query, context, action, params, user, search_context_key)
-
-    if action == 'send_file':
+    elif action == 'send_file':
         await handle_send_file(query, context, action, params, user)
-
     # Прямой поиск обработчика в словаре
-    if action in action_handlers:
+    elif action in action_handlers:
         handler = action_handlers[action]
         await handler(query, context, action, params)
     else:
@@ -1578,7 +1606,8 @@ async def handle_group_page_change(query, context, action, params, user, search_
     if reply_markup:
         found_books_count = search_context.get(FOUND_BOOKS_COUNT)
         user_params = search_context.get(USER_PARAMS)
-        search_area = search_context.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+        # search_area = search_context.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+        search_area = user_params.SearchArea
 
         user_name = (user.first_name if user.first_name else "")
         header_text = f"📚 Результаты поиска" + (f" для {user_name}" if user_name else "") + ":\n\n"
@@ -1595,7 +1624,8 @@ async def handle_group_page_change(query, context, action, params, user, search_
 async def handle_book_info(query, context, action, params):
     """Показывает информацию о книге с дополнительными кнопками"""
     try:
-        file_path, file_name, file_ext = params
+        # file_path, file_name, file_ext = params
+        file_name = params[0]
         book_id = int(file_name)
 
         # Получаем информацию о книге из БД
@@ -1631,7 +1661,7 @@ async def handle_book_info(query, context, action, params):
 
         # Создаем клавиатуру с дополнительными кнопками
         keyboard = [
-            [InlineKeyboardButton("📥 Скачать", callback_data=f"send_file:{file_path}:{file_name}:{file_ext}")],
+            [InlineKeyboardButton("📥 Скачать", callback_data=f"send_file:{file_name}")],
             [InlineKeyboardButton("📖 О книге", callback_data=f"book_details:{book_id}"),
             InlineKeyboardButton("👤 Об авторе", callback_data=f"author_info:{author_ids[0]}")],
             [InlineKeyboardButton("💬 Отзывы", callback_data=f"book_reviews:{book_id}"),
@@ -1830,17 +1860,17 @@ async def handle_search_authors(update: Update, context: CallbackContext):
         disable_notification=True
     )
 
-    size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
-    rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-    search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B) # Дополнительный поиск по аннотации книг
+    # size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
+    # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+    # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B) # Дополнительный поиск по аннотации книг
     user_params = DB_SETTINGS.get_user_settings(user.id)
     context.user_data[USER_PARAMS] = user_params
-    context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_AUTHORS  # Сохраняем контекст
+    # context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_AUTHORS  # Сохраняем контекст
 
     # Ищем авторов
     authors, found_authors_count = DB_BOOKS.search_authors(
-        query_text, user_params.Lang, size_limit, rating_filter,
-        search_area=search_area
+        query_text, user_params.Lang, user_params.BookSize, user_params.Rating,
+        search_area=user_params.SearchArea
     )
 
     if authors or found_authors_count > 0:
@@ -1856,14 +1886,14 @@ async def handle_search_authors(update: Update, context: CallbackContext):
         if reply_markup:
             header_found_text = form_header_books(
                 page, user_params.MaxBooks, found_authors_count, 'авторов',
-                search_area=search_area
+                search_area=user_params.SearchArea
             )
             result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
 
         context.user_data[AUTHORS] = authors
         context.user_data[PAGES_OF_AUTHORS] = pages_of_authors
         context.user_data[FOUND_AUTHORS_COUNT] = found_authors_count
-        context.user_data['authors_search_query'] = query_text  # Сохраняем поисковый запрос
+        # context.user_data['authors_search_query'] = query_text  # Сохраняем поисковый запрос
         context.user_data['last_authors_page'] = page  # Сохраняем текущую страницу
         context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
     else:
@@ -1883,17 +1913,18 @@ async def handle_search_author_books(query, context, action, params):
 
         user = query.from_user
         user_params = DB_SETTINGS.get_user_settings(user.id)
-        size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
-        rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-        search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+        # size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
+        # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
+        # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
 
         # Ищем книги автора в комбинации с предыдущим запросом
-        query_text = f"{context.user_data['authors_search_query']}"
+        # query_text = f"{context.user_data['authors_search_query']}"
+        query_text = f"{context.user_data['last_search_query']}"
 
         books, found_books_count = DB_BOOKS.search_books(
-            query_text, user_params.Lang, user_params.DateSortOrder, size_limit, rating_filter,
+            query_text, user_params.Lang, user_params.DateSortOrder, user_params.BookSize, user_params.Rating,
             author_id = author_id, # Добавляем ограничение по автору для поиска книг выбранного автора
-            search_area=search_area
+            search_area=user_params.SearchArea
         )
 
         if books:
@@ -1914,7 +1945,7 @@ async def handle_search_author_books(query, context, action, params):
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 header_text = form_header_books(
                     page, user_params.MaxBooks, found_books_count, 'книг', author_name=author_name,
-                    search_area=search_area
+                    search_area=user_params.SearchArea
                 )
                 await query.edit_message_text(header_text, reply_markup=reply_markup)
         else:
@@ -1944,7 +1975,8 @@ async def handle_back_to_authors(query, context, action, params):
         if reply_markup:
             found_authors_count = context.user_data.get(FOUND_AUTHORS_COUNT)
             user_params = context.user_data.get(USER_PARAMS)
-            search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+            # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+            search_area = user_params.SearchArea
 
             header_found_text = form_header_books(
                 page_num, user_params.MaxBooks, found_authors_count, 'авторов',
@@ -1978,7 +2010,8 @@ async def handle_authors_page_change(query, context, action, params):
         if reply_markup:
             found_authors_count = context.user_data.get(FOUND_AUTHORS_COUNT)
             user_params = context.user_data.get(USER_PARAMS)
-            search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+            # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+            search_area = user_params.SearchArea
 
             header_found_text = form_header_books(
                 page, user_params.MaxBooks, found_authors_count, 'авторов',
