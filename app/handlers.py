@@ -883,6 +883,10 @@ async def handle_page_change(query, context, action, params):
         # Определяем контекст поиска
         search_context = context.user_data.get(SEARCH_CONTEXT, SEARCH_TYPE_BOOKS)
         keyboard = create_books_keyboard(page, pages_of_books, search_context)
+        if search_context == SEARCH_TYPE_AUTHORS:
+            author_id = context.user_data['author_id']
+            keyboard.append([InlineKeyboardButton("👤 Об авторе", callback_data=f"author_info:{author_id}")])
+
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
@@ -1903,6 +1907,7 @@ async def handle_search_author_books(query, context, action, params):
             context.user_data[PAGES_OF_BOOKS] = pages_of_books
             context.user_data[FOUND_BOOKS_COUNT] = found_books_count
             context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+            context.user_data['author_id'] = author_id # Сохраняем ID автора
             # Имя автора из первой книги
             author_name = f"{books[0].LastName} {books[0].FirstName} {books[0].MiddleName}"
 

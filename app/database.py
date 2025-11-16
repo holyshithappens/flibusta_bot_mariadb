@@ -806,7 +806,11 @@ class DatabaseBooks():
             cursor = conn.cursor(buffered=True)
 
             # Получаем аннотацию
-            cursor.execute("SELECT title, Body FROM libbannotations WHERE BookID = %s", (book_id,))
+            cursor.execute("""
+                SELECT b.title, ba.Body FROM libbannotations ba 
+                INNER JOIN libbook b ON ba.BookId = b.BookId
+                WHERE ba.BookID = %s
+                """, (book_id,))
             annotation_result = cursor.fetchone()
 
             return {
