@@ -6,7 +6,8 @@ from typing import Dict, List
 import mysql.connector
 from contextlib import contextmanager
 
-from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, FLIBUSTA_BASE_URL, MAX_BOOKS_SEARCH
+from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, FLIBUSTA_BASE_URL, MAX_BOOKS_SEARCH, \
+    SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA
 from utils import get_cover_url
 
 Book = namedtuple('Book', ['FileName', 'Title', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'BookSize', 'SearchYear', 'LibRate', 'SeriesTitle', 'Relevance'])
@@ -722,11 +723,11 @@ class DatabaseBooks():
         return DatabaseBooks._class_cached_langs
 
 
-    def search_books(self, query, lang, sort_order, size_limit, rating_filter=None, series_id=0, author_id=0, search_annotation=False):
+    def search_books(self, query, lang, sort_order, size_limit, rating_filter=None, series_id=0, author_id=0, search_area=SETTING_SEARCH_AREA_B):
         """Ищем книги по запросу пользователя"""
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter, series_id, author_id)
         # Строим запросы для поиска книг и подсчёта количества найденных книг
-        sql_query, sql_query_cnt = self.build_sql_queries_ft(sql_where, sort_order, search_annotation)
+        sql_query, sql_query_cnt = self.build_sql_queries_ft(sql_where, sort_order, search_area)
 
         params = []
         # Пара одинаковых параметров в виде полного запроса для FullText поиска
@@ -1000,7 +1001,7 @@ class DatabaseBooks():
 
 
     @staticmethod
-    def build_sql_queries_ft(sql_where, sort_order='desc', search_annotation=False):
+    def build_sql_queries_ft(sql_where, sort_order='desc', search_area=SETTING_SEARCH_AREA_B):
         fields = Book._fields
 
         # Всегда используем sum для Relevance
@@ -1013,18 +1014,11 @@ class DatabaseBooks():
 
         select_fields = ', '.join(processed_fields)
 
-        if search_annotation:
-            # Добавляем UNION ALL если нужен поиск по аннотациям
-            # from_clause = f"""
-            #     FROM (
-            #         {SQL_QUERY_BOOKS} {sql_where}
-            #         UNION ALL
-            #         {SQL_QUERY_ABOOKS} {sql_where}
-            #     ) as subquery
-            # """
+        if search_area == SETTING_SEARCH_AREA_BA:
+            # Основной запрос поиска по аннотации книг
             from_clause = f"FROM ( {SQL_QUERY_ABOOKS} {sql_where} ) as subquery"
         else:
-            # Базовый FROM для обычного поиска
+            # Основной запрос поиска по основной информации книг
             from_clause = f"FROM ( {SQL_QUERY_BOOKS} {sql_where} ) as subquery"
 
         sql_query = f"""
