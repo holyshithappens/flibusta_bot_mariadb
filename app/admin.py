@@ -7,7 +7,8 @@ from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKey
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext, ConversationHandler
 
-from database import DatabaseSettings, DatabaseLogs
+from handlers import get_user_params, update_user_params
+from database import DatabaseLogs
 
 # Добавляем константы для пагинации
 USERS_PER_PAGE = 10
@@ -39,7 +40,7 @@ admin_sessions = {}
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 ADMIN_SESSION_TIMEOUT = 1800  # 30 минут
 
-DB_SETTINGS = DatabaseSettings()
+# DB_SETTINGS = DatabaseSettings()
 
 
 # ===== АДМИНИСТРИРОВАНИЕ =====
@@ -552,7 +553,8 @@ async def show_user_detail(query, context: CallbackContext, user_id):
     activities = DB_LOGS.get_user_activity(user_id, 10)
 
     # Проверяем статус блокировки
-    user_settings = DB_SETTINGS.get_user_settings(user_id)
+    # user_settings = DB_SETTINGS.get_user_settings(user_id)
+    user_settings = get_user_params(context)
     is_blocked = user_settings.IsBlocked
 
     user_text = f"👤 <b>Информация о пользователе</b>\n\n"
@@ -593,7 +595,8 @@ async def show_user_detail(query, context: CallbackContext, user_id):
 
 async def toggle_user_block(query, context: CallbackContext, user_id):
     """Блокирует/разблокирует пользователя с проверками"""
-    user_settings = DB_SETTINGS.get_user_settings(user_id)
+    # user_settings = DB_SETTINGS.get_user_settings(user_id)
+    user_settings = get_user_params(context)
     current_block_status = user_settings.IsBlocked
     new_block_status = not current_block_status
 
@@ -607,7 +610,8 @@ async def toggle_user_block(query, context: CallbackContext, user_id):
         await query.answer("❌ Нельзя заблокировать администратора")
         return
 
-    DB_SETTINGS.update_user_settings(user_id, IsBlocked=new_block_status)
+    # DB_SETTINGS.update_user_settings(user_id, IsBlocked=new_block_status)
+    update_user_params(context, IsBlocked=new_block_status)
 
     action = "заблокирован" if new_block_status else "разблокирован"
     await query.answer(f"Пользователь {action}")

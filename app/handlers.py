@@ -28,15 +28,13 @@ DB_BOOKS = DatabaseBooks({
     'password': os.getenv('DB_PASSWORD'),
     'charset': os.getenv('DB_CHARSET', 'utf8mb4')
 })
-DB_SETTINGS = DatabaseSettings()
+# DB_SETTINGS = DatabaseSettings()
 
-USER_PARAMS = 'USER_PARAMS'
+# USER_PARAMS = 'USER_PARAMS'
 
 BOOKS = 'BOOKS'
 PAGES_OF_BOOKS = 'PAGES_OF_BOOKS'
 FOUND_BOOKS_COUNT = 'FOUND_BOOKS_COUNT'
-
-# SEARCH_CONTEXT = 'SEARCH_CONTEXT'
 
 SERIES = 'SERIES'
 PAGES_OF_SERIES = 'PAGES_OF_SERIES'
@@ -331,10 +329,6 @@ async def start_cmd(update: Update, context: CallbackContext):
     """Обработка команды /start с deep linking"""
     user = update.effective_user
 
-    # # Сохраняем настройки пользователя
-    # user_params = DB_SETTINGS.get_user_settings(user.id)
-    # context.user_data[USER_PARAMS] = user_params
-
     #Вывод приглашения и помощи по поиску книг
     welcome_text = """
 📚 <b>Привет! Я помогу тебе искать и скачивать книги непосредственно из библиотеки Флибуста.</b> 
@@ -349,10 +343,6 @@ async def start_cmd(update: Update, context: CallbackContext):
 /donate - поддержать разработчика
     """
     await update.message.reply_text(welcome_text, parse_mode='HTML', disable_web_page_preview=True)
-
-    # # user = update.message.from_user
-    # user_params = DB_SETTINGS.get_user_settings(user.id)
-    # context.user_data[USER_PARAMS] = user_params
 
     await log_stats(context)
 
@@ -369,10 +359,8 @@ async def genres_cmd(update: Update, context: CallbackContext):
 
         keyboard = []
         for genre, count in results:
-        # for i, (genre, count) in enumerate(results):
             count_text = f"({count:,})".replace(","," ") if count else "(0)"
             button_text = f"{genre} {count_text}"
-            # print(f"DEBUG: Button {i}: '{button_text}' -> callback: 'show_genres:{genre}'")
             genre_index = results.index((genre, count))
             keyboard.append([InlineKeyboardButton(button_text, callback_data=f"show_genres:{genre_index}")])
 
@@ -384,7 +372,6 @@ async def genres_cmd(update: Update, context: CallbackContext):
         await update.message.reply_text("Посмотреть жанры:", reply_markup=reply_markup)
         # print(f"DEBUG: Message sent successfully")
     except Exception as e:
-        # print(f"Error in genres_cmd: {e}")
         await update.message.reply_text("❌ Ошибка при загрузке жанров")
 
     await log_stats(context)
@@ -609,11 +596,16 @@ async def news_cmd(update: Update, context: CallbackContext):
 # ===== ПОИСК И НАВИГАЦИЯ =====
 async def handle_message(update: Update, context: CallbackContext):
     """Обрабатывает текстовые сообщения (поиск книг или серий)"""
+    # print(f"DEBUG: {context._user_id} {context._chat_id}")
+    # for attr_name in dir(context):
+    #     attr_value = getattr(context, attr_name)
+    #     print(f"{attr_name}: {type(attr_value).__name__}")
+
     try:
         # Обрабатываем новый запрос
-        # search_type = context.user_data.get(SETTING_SEARCH_TYPE, 'books')
         user = update.effective_message.from_user
-        user_params = DB_SETTINGS.get_user_settings(user.id)
+        # user_params = DB_SETTINGS.get_user_settings(user.id)
+        user_params = get_user_params(context)
         search_type = user_params.SearchType
 
         if search_type == SEARCH_TYPE_BOOKS:
@@ -661,14 +653,11 @@ async def handle_search_books(update: Update, context: CallbackContext):
         disable_notification=True
     )
 
-    # size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
-    # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-    # search_area = context.user_data.get(SETTING_SEARCH_AREA,SETTING_SEARCH_AREA_B) # Область поиска
     # Извлекаем из БД настройки пользователя
-    user_params = DB_SETTINGS.get_user_settings(user.id)
-    # Сохраняем настройки пользователя в его контексте
-    context.user_data[USER_PARAMS] = user_params
-    # context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_BOOKS  # Сохраняем контекст
+    # user_params = DB_SETTINGS.get_user_settings(user.id)
+    # # Сохраняем настройки пользователя в его контексте
+    # context.user_data[USER_PARAMS] = user_params
+    user_params =  get_user_params(context)
 
     books, found_books_count = DB_BOOKS.search_books(
         query_text, user_params.Lang, user_params.DateSortOrder, user_params.BookSize, user_params.Rating,
@@ -683,7 +672,6 @@ async def handle_search_books(update: Update, context: CallbackContext):
 
         page = 0
         keyboard = create_books_keyboard(page, pages_of_books)
-        # add_close_button(keyboard)
         reply_markup = InlineKeyboardMarkup(keyboard)
         if reply_markup:
             header_found_text = form_header_books(
@@ -737,12 +725,9 @@ async def handle_search_series(update: Update, context: CallbackContext):
         disable_notification=True
     )
 
-    # size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
-    # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-    # search_area = context.user_data.get(SETTING_SEARCH_AREA,SETTING_SEARCH_AREA_B) # Дополнительный поиск по аннотации книг
-    user_params = DB_SETTINGS.get_user_settings(user.id)
-    context.user_data[USER_PARAMS] = user_params
-    # context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_SERIES  # Сохраняем контекст
+    # user_params = DB_SETTINGS.get_user_settings(user.id)
+    # context.user_data[USER_PARAMS] = user_params
+    user_params = get_user_params(context)
 
     # Ищем серии
     series, found_series_count = DB_BOOKS.search_series(
@@ -757,7 +742,6 @@ async def handle_search_series(update: Update, context: CallbackContext):
 
         page = 0
         keyboard = create_series_keyboard(page, pages_of_series)
-        # add_close_button(keyboard)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
@@ -770,7 +754,6 @@ async def handle_search_series(update: Update, context: CallbackContext):
         context.user_data[SERIES] = series
         context.user_data[PAGES_OF_SERIES] = pages_of_series
         context.user_data[FOUND_SERIES_COUNT] = found_series_count
-        # context.user_data['series_search_query'] = query_text  # Сохраняем поисковый запрос
         context.user_data['last_series_page'] = page  # Сохраняем текущую страницу
         context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
     else:
@@ -789,13 +772,10 @@ async def handle_search_series_books(query, context, action, params):
         series_id = int(params[0])
 
         user = query.from_user
-        user_params = DB_SETTINGS.get_user_settings(user.id)
-        # size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
-        # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-        # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+        # user_params = DB_SETTINGS.get_user_settings(user.id)
+        user_params = get_user_params(context)
 
         # Ищем книги серии в комбинации с предыдущим запросом
-        # query_text = f"{context.user_data['series_search_query']}"
         query_text = f"{context.user_data['last_search_query']}"
 
         # print(f"DEBUG: query_text = {query_text}")
@@ -820,7 +800,6 @@ async def handle_search_series_books(query, context, action, params):
 
             # Добавляем кнопку возврата к сериям
             if keyboard:
-                # add_close_button(keyboard)
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
                 header_text = form_header_books(
@@ -829,7 +808,6 @@ async def handle_search_series_books(query, context, action, params):
                 )
                 await query.edit_message_text(header_text, reply_markup=reply_markup)
         else:
-            # await query.edit_message_text(f"Не найдено книг в серии '{series_name}'")
             await query.edit_message_text(f"Не найдено книг в серии '{series_id}'")
 
     except (ValueError, IndexError) as e:
@@ -862,12 +840,9 @@ async def handle_search_authors(update: Update, context: CallbackContext):
         disable_notification=True
     )
 
-    # size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
-    # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-    # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B) # Дополнительный поиск по аннотации книг
-    user_params = DB_SETTINGS.get_user_settings(user.id)
-    context.user_data[USER_PARAMS] = user_params
-    # context.user_data[SEARCH_CONTEXT] = SEARCH_TYPE_AUTHORS  # Сохраняем контекст
+    # user_params = DB_SETTINGS.get_user_settings(user.id)
+    # context.user_data[USER_PARAMS] = user_params
+    user_params = get_user_params(context)
 
     # Ищем авторов
     authors, found_authors_count = DB_BOOKS.search_authors(
@@ -882,7 +857,6 @@ async def handle_search_authors(update: Update, context: CallbackContext):
 
         page = 0
         keyboard = create_authors_keyboard(page, pages_of_authors)
-        # add_close_button(keyboard)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
@@ -895,7 +869,6 @@ async def handle_search_authors(update: Update, context: CallbackContext):
         context.user_data[AUTHORS] = authors
         context.user_data[PAGES_OF_AUTHORS] = pages_of_authors
         context.user_data[FOUND_AUTHORS_COUNT] = found_authors_count
-        # context.user_data['authors_search_query'] = query_text  # Сохраняем поисковый запрос
         context.user_data['last_authors_page'] = page  # Сохраняем текущую страницу
         context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
     else:
@@ -914,13 +887,10 @@ async def handle_search_author_books(query, context, action, params):
         author_id = int(params[0])
 
         user = query.from_user
-        user_params = DB_SETTINGS.get_user_settings(user.id)
-        # size_limit = context.user_data.get(SETTING_SIZE_LIMIT)
-        # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-        # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+        # user_params = DB_SETTINGS.get_user_settings(user.id)
+        user_params = get_user_params(context)
 
         # Ищем книги автора в комбинации с предыдущим запросом
-        # query_text = f"{context.user_data['authors_search_query']}"
         query_text = f"{context.user_data['last_search_query']}"
 
         books, found_books_count = DB_BOOKS.search_books(
@@ -971,8 +941,8 @@ async def handle_page_change(query, context, action, params):
         page = int(action.removeprefix('page_'))
         pages_of_books = context.user_data.get(PAGES_OF_BOOKS)
         # Определяем контекст поиска
-        user_params = context.user_data.get(USER_PARAMS)
-        # search_context = context.user_data.get(SEARCH_CONTEXT, SEARCH_TYPE_BOOKS)
+        # user_params = context.user_data.get(USER_PARAMS)
+        user_params = get_user_params(context)
         search_context = user_params.SearchType
         keyboard = create_books_keyboard(page, pages_of_books, search_context)
         if search_context == SEARCH_TYPE_AUTHORS:
@@ -983,7 +953,6 @@ async def handle_page_change(query, context, action, params):
 
         if reply_markup:
             found_books_count = context.user_data.get(FOUND_BOOKS_COUNT)
-            # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
             # Формируем заголовок в зависимости от контекста
             series_name = None
             if search_context == SEARCH_TYPE_SERIES:
@@ -1022,8 +991,8 @@ async def handle_series_page_change(query, context, action, params):
 
         if reply_markup:
             found_series_count = context.user_data.get(FOUND_SERIES_COUNT)
-            user_params = context.user_data.get(USER_PARAMS)
-            # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+            # user_params = context.user_data.get(USER_PARAMS)
+            user_params = get_user_params(context)
             search_area = user_params.SearchArea
 
             header_found_text = form_header_books(
@@ -1063,8 +1032,8 @@ async def handle_authors_page_change(query, context, action, params):
 
         if reply_markup:
             found_authors_count = context.user_data.get(FOUND_AUTHORS_COUNT)
-            user_params = context.user_data.get(USER_PARAMS)
-            # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+            # user_params = context.user_data.get(USER_PARAMS)
+            user_params = get_user_params(context)
             search_area = user_params.SearchArea
 
             header_found_text = form_header_books(
@@ -1106,7 +1075,8 @@ async def show_settings_menu(update_or_query, context, from_callback=False):
 
 async def handle_set_max_books(query, context, action, params):
     """Показывает настройки максимального вывода"""
-    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    # user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    user_params = get_user_params(context)
     current_value = user_params.MaxBooks
 
     options = SETTING_OPTIONS[SETTING_MAX_BOOKS]
@@ -1118,7 +1088,8 @@ async def handle_set_max_books(query, context, action, params):
 
 async def handle_set_lang_search(query, context, action, params):
     """Показывает настройки языка поиска"""
-    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    # user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    user_params = get_user_params(context)
     current_value = user_params.Lang
 
     # Получаем языки из БД и преобразуем в нужный формат
@@ -1133,7 +1104,8 @@ async def handle_set_lang_search(query, context, action, params):
 
 async def handle_set_sort_order(query, context, action, params):
     """Показывает настройки сортировки"""
-    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    # user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    user_params = get_user_params(context)
     current_value = user_params.DateSortOrder
 
     options = SETTING_OPTIONS[SETTING_SORT_ORDER]
@@ -1145,8 +1117,8 @@ async def handle_set_sort_order(query, context, action, params):
 
 async def handle_set_size_limit(query, context, action, params):
     """Показывает настройки ограничения размера"""
-    # current_value = context.user_data.get('size_limit', '')
-    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    # user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    user_params = get_user_params(context)
     current_value = user_params.BookSize
 
     options = SETTING_OPTIONS[SETTING_SIZE_LIMIT]
@@ -1158,7 +1130,8 @@ async def handle_set_size_limit(query, context, action, params):
 
 async def handle_set_book_format(query, context, action, params):
     """Показывает настройки формата книг"""
-    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    # user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    user_params = get_user_params(context)
     current_value = user_params.BookFormat
 
     options = SETTING_OPTIONS[SETTING_BOOK_FORMAT]
@@ -1170,8 +1143,8 @@ async def handle_set_book_format(query, context, action, params):
 
 async def handle_set_search_type(query, context, action, params):
     """Показывает настройки типа поиска"""
-    # current_value = context.user_data.get(SETTING_SEARCH_TYPE, 'books')
-    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    # user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    user_params = get_user_params(context)
     current_value = user_params.SearchType
 
     options = SETTING_OPTIONS[SETTING_SEARCH_TYPE]
@@ -1183,8 +1156,8 @@ async def handle_set_search_type(query, context, action, params):
 
 async def handle_set_rating_filter(query, context, action, params):
     """Показывает настройки фильтра по рейтингу"""
-    # current_value = context.user_data.get(SETTING_RATING_FILTER, '')
-    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    # user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    user_params = get_user_params(context)
     current_value = user_params.Rating
 
     # Преобразуем текущее значение в список для отображения
@@ -1205,47 +1178,41 @@ async def handle_set_actions(query, context, action, params):
     if action.startswith(f'set_{SETTING_MAX_BOOKS}_to_'):
         setting_type = SETTING_MAX_BOOKS
         new_value = int(action.removeprefix(f'set_{SETTING_MAX_BOOKS}_to_'))
-        DB_SETTINGS.update_user_settings(user.id, maxbooks=new_value)
+        update_user_params(context, MaxBooks=new_value)
 
     elif action.startswith(f'set_{SETTING_LANG_SEARCH}_to_'):
         setting_type = SETTING_LANG_SEARCH
         new_value = action.removeprefix(f'set_{SETTING_LANG_SEARCH}_to_')
-        DB_SETTINGS.update_user_settings(user.id, lang=new_value)
+        update_user_params(context, Lang=new_value)
 
     elif action.startswith(f'set_{SETTING_SORT_ORDER}_to_'):
         setting_type = SETTING_SORT_ORDER
         new_value = action.removeprefix(f'set_{SETTING_SORT_ORDER}_to_')
-        DB_SETTINGS.update_user_settings(user.id, datesortorder=new_value)
+        update_user_params(context, DateSortOrder=new_value)
 
     elif action.startswith(f'set_{SETTING_SIZE_LIMIT}_to_'):
         setting_type = SETTING_SIZE_LIMIT
         new_value = action.removeprefix(f'set_{SETTING_SIZE_LIMIT}_to_')
         # context.user_data[SETTING_SIZE_LIMIT] = new_value
-        DB_SETTINGS.update_user_settings(user.id, booksize=new_value)
+        update_user_params(context, BookSize=new_value)
 
     elif action.startswith(f'set_{SETTING_BOOK_FORMAT}_to_'):
         setting_type = SETTING_BOOK_FORMAT
         new_value = action.removeprefix(f'set_{SETTING_BOOK_FORMAT}_to_')
-        DB_SETTINGS.update_user_settings(user.id, BookFormat=new_value)
+        update_user_params(context, BookFormat=new_value)
 
     elif action.startswith(f'set_{SETTING_SEARCH_TYPE}_to_'):
         setting_type = SETTING_SEARCH_TYPE
         new_value = action.removeprefix(f'set_{SETTING_SEARCH_TYPE}_to_')
-        # context.user_data[SETTING_SEARCH_TYPE] = new_value
-        DB_SETTINGS.update_user_settings(user.id, searchtype=new_value)
+        update_user_params(context, SearchType=new_value)
 
     elif action.startswith(f'set_{SETTING_SEARCH_AREA}_to_'):
         setting_type = SETTING_SEARCH_AREA
         new_value = action.removeprefix(f'set_{SETTING_SEARCH_AREA}_to_')
-        # context.user_data[SETTING_SEARCH_AREA] = new_value
-        DB_SETTINGS.update_user_settings(user.id, searcharea=new_value)
+        update_user_params(context, SearchArea=new_value)
 
     else:
         return
-
-    # Обновляем контекст пользователя
-    # if setting_type != SETTING_SEARCH_TYPE and setting_type != SETTING_SIZE_LIMIT:
-    #     context.user_data[USER_PARAMS] = DB_SETTINGS.get_user_settings(user.id)
 
     # Создаем обновленную клавиатуру
     if setting_type == 'lang_search':
@@ -1271,8 +1238,8 @@ async def handle_set_actions(query, context, action, params):
 
 async def handle_set_search_area(query, context, action, params):
     """Показывает настройки дополнительного поиска"""
-    # current_value = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)
-    user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    # user_params = DB_SETTINGS.get_user_settings(query.from_user.id)
+    user_params = get_user_params(context)
     current_value = user_params.SearchArea
 
     options = SETTING_OPTIONS[SETTING_SEARCH_AREA]
@@ -1286,7 +1253,6 @@ async def handle_set_search_area(query, context, action, params):
 async def handle_book_info(query, context, action, params):
     """Показывает информацию о книге с дополнительными кнопками"""
     try:
-        # file_path, file_name, file_ext = params
         file_name = params[0]
         book_id = int(file_name)
 
@@ -1344,11 +1310,6 @@ async def handle_book_info(query, context, action, params):
 async def handle_close_info(query, context, action, params):
     """Универсальный обработчик закрытия информационных сообщений по ID"""
     try:
-        # message_id = int(params[0])
-        # await context.bot.delete_message(
-        #     chat_id=query.message.chat_id,
-        #     message_id=message_id
-        # )
         # Удаляем все переданные message_id
         for msg_id in params:
             await context.bot.delete_message(query.message.chat_id, int(msg_id))
@@ -1401,24 +1362,6 @@ async def handle_author_info(query: CallbackQuery, context: CallbackContext, act
 
         message_ids = []  # Храним ID всех сообщений
         message_text = format_author_info(author_info)
-
-        # # Если есть фото автора, отправляем фото с укороченным текстом об авторе из-за ограничений
-        # if author_info.get('photo_url'):
-        #     info_message = await query.message.reply_photo(
-        #         photo=author_info['photo_url'],
-        #         caption=message_text[:1000] + ("..." if len(message_text) > 1000 else ""),
-        #         parse_mode=ParseMode.HTML
-        #     )
-        # else:
-        #     info_message = await query.message.reply_text(
-        #         message_text,
-        #         parse_mode=ParseMode.HTML
-        #     )
-        #
-        # # Добавляем кнопку закрытия с ID сообщения
-        # keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")]]
-        # reply_markup = InlineKeyboardMarkup(keyboard)
-        # await info_message.edit_reply_markup(reply_markup)
 
         # Сообщение 1: Фото без подписи (если есть)
         if author_info.get('photo_url'):
@@ -1529,10 +1472,8 @@ async def handle_group_search(update: Update, context: CallbackContext):
         )
 
         # Получаем или создаем настройки пользователя
-        user_params = DB_SETTINGS.get_user_settings(user.id)
-        # context.user_data[USER_PARAMS] = user_params
-        # rating_filter = context.user_data.get(SETTING_RATING_FILTER, '')
-        # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+        # user_params = DB_SETTINGS.get_user_settings(user.id)
+        user_params = get_user_params(context)
 
         print(f"DEBUG: clean_query_text = {clean_query_text}")
 
@@ -1550,7 +1491,6 @@ async def handle_group_search(update: Update, context: CallbackContext):
             page = 0
 
             keyboard = create_books_keyboard(page, pages_of_books)
-            # add_close_button(keyboard)
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             if reply_markup:
@@ -1573,12 +1513,16 @@ async def handle_group_search(update: Update, context: CallbackContext):
                     BOOKS: books,
                     PAGES_OF_BOOKS: pages_of_books,
                     FOUND_BOOKS_COUNT: found_books_count,
-                    USER_PARAMS: user_params,
+                    # USER_PARAMS: user_params,
                     # 'user': user,
                     'query': clean_query_text,
                     'last_activity': datetime.now(),
                     'last_bot_message_id': result_message.message_id
                 }
+                # Обновляем настройки пользователя - преобразуем в словарь
+                user_params_dict = user_params._asdict()  # namedtuple в словарь
+                update_user_params(context, **user_params_dict)
+
         else:
             # Отправляем сообщение о том, что книги не найдены
             result_message = await context.bot.send_message(
@@ -1662,8 +1606,8 @@ async def handle_group_page_change(query, context, action, params, user, search_
 
     if reply_markup:
         found_books_count = search_context.get(FOUND_BOOKS_COUNT)
-        user_params = search_context.get(USER_PARAMS)
-        # search_area = search_context.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+        # user_params = search_context.get(USER_PARAMS)
+        user_params = get_user_params(context)
         search_area = user_params.SearchArea
 
         user_name = (user.first_name if user.first_name else "")
@@ -1679,10 +1623,13 @@ async def handle_group_page_change(query, context, action, params, user, search_
 # ===== CALLBACK ОБРАБОТЧИКИ =====
 async def button_callback(update: Update, context: CallbackContext):
     """УНИВЕРСАЛЬНЫЙ обработчик callback-запросов"""
+    # print(f"DEBUG: {context._user_id} {context._chat_id}")
+    # for attr_name in dir(context):
+    #     attr_value = getattr(context, attr_name)
+    #     print(f"{attr_name}: {type(attr_value).__name__}")
+
     query = update.callback_query
     user = query.from_user
-    # user_params = DB_SETTINGS.get_user_settings(user.id)
-    # context.user_data[USER_PARAMS] = user_params
 
     try:
         await query.answer()
@@ -1748,11 +1695,6 @@ async def handle_private_callback(query, context, action, params):
         await handle_toggle_rating(query, context, action, params)
         return
 
-    # # Добавим обработку переключения дополнительных поисков
-    # if action.startswith('toggle_search_'):
-    #     await handle_toggle_search(query, context, action, params)
-    #     return
-
     # Прямой поиск обработчика в словаре
     if action in action_handlers:
         handler = action_handlers[action]
@@ -1784,10 +1726,10 @@ async def handle_private_callback(query, context, action, params):
 
 async def handle_send_file(query, context, action, params, for_user = None):
     """Обрабатывает отправку файла"""
-    # file_path, file_name, file_ext = params
     file_name = params[0]
     book_id = file_name
-    user_params = context.user_data.get(USER_PARAMS)
+    # user_params = context.user_data.get(USER_PARAMS)
+    user_params = get_user_params(context)
     book_format = user_params.BookFormat if user_params else DEFAULT_BOOK_FORMAT
 
     public_filename = await process_book_download(query, book_id, book_format, file_name, for_user)
@@ -1847,8 +1789,8 @@ async def handle_back_to_series(query, context, action, params):
 
         if reply_markup:
             found_series_count = context.user_data.get(FOUND_SERIES_COUNT)
-            user_params = context.user_data.get(USER_PARAMS)
-            # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Область поиска
+            # user_params = context.user_data.get(USER_PARAMS)
+            user_params = get_user_params(context)
             search_area = user_params.SearchArea
 
             header_found_text = form_header_books(
@@ -1880,8 +1822,8 @@ async def handle_back_to_authors(query, context, action, params):
 
         if reply_markup:
             found_authors_count = context.user_data.get(FOUND_AUTHORS_COUNT)
-            user_params = context.user_data.get(USER_PARAMS)
-            # search_area = context.user_data.get(SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B)  # Дополнительный поиск по аннотации книг
+            # user_params = context.user_data.get(USER_PARAMS)
+            user_params = get_user_params(context)
             search_area = user_params.SearchArea
 
             header_found_text = form_header_books(
@@ -1903,10 +1845,9 @@ async def handle_close_message(query, context, action, params):
 async def handle_toggle_rating(query, context, action, params):
     """Обрабатывает переключение рейтинга в фильтре"""
     rating_value = action.removeprefix('toggle_rating_')
-    # current_filter = context.user_data.get(SETTING_RATING_FILTER, '')
     user = query.from_user
-    user_params = DB_SETTINGS.get_user_settings(user.id)
-    current_filter = user_params.Rating
+    # user_params = DB_SETTINGS.get_user_settings(user.id)
+    current_filter = get_user_params(context).Rating
     current_ratings = current_filter.split(',') if current_filter else []
 
     if rating_value in current_ratings:
@@ -1918,8 +1859,7 @@ async def handle_toggle_rating(query, context, action, params):
 
     # Обновляем фильтр
     new_filter = ','.join(current_ratings)
-    # context.user_data[SETTING_RATING_FILTER] = new_filter
-    DB_SETTINGS.update_user_settings(user.id, rating=new_filter)
+    update_user_params(context, Rating=new_filter)
 
     # Обновляем клавиатуру
     options = SETTING_OPTIONS[SETTING_RATING_FILTER]
@@ -1936,9 +1876,8 @@ async def handle_toggle_rating(query, context, action, params):
 
 async def handle_reset_ratings(query, context, action, params):
     """Сбрасывает все выбранные рейтинги"""
-    # context.user_data[SETTING_RATING_FILTER] = ''
     user = query.from_user
-    DB_SETTINGS.update_user_settings(user.id, rating='')
+    update_user_params(context, Rating='')
 
     # Обновляем клавиатуру
     options = SETTING_OPTIONS[SETTING_RATING_FILTER]
@@ -1969,49 +1908,98 @@ async def send_invoice(context, chat_id, title, description, payload, currency, 
         )
 
 
+# ===== УПРАВЛЕНИЕ КОНТЕКСТОМ =====
+class ContextManager:
+    _instance = None
+    _db_settings:DatabaseSettings = None
+    USER_PARAMS = 'USER_PARAMS'
 
-# def create_aux_search_keyboard(current_values, options):
-#     """Создает клавиатуру для множественного выбора рейтингов"""
-#     keyboard = []
-#
-#     for value, display_text in options:
-#         is_selected = current_values.get(value, False)
-#         emoji = "✔" if is_selected else ""
-#         button_text = f"{emoji} {display_text}"
-#
-#         keyboard.append([InlineKeyboardButton(
-#             button_text,
-#             callback_data=f"toggle_search_{value}"
-#         )])
-#
-#     # # Кнопка сброса
-#     # keyboard.append([InlineKeyboardButton("🔄 Сбросить все", callback_data="reset_ratings")])
-#
-#     # Кнопка назад
-#     keyboard += create_back_button()
-#
-#     return InlineKeyboardMarkup(keyboard)
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._init_db()
+        return cls._instance
+
+    @classmethod
+    def _init_db(cls):
+        if cls._db_settings is None:
+            cls._db_settings = DatabaseSettings()
+        return cls._instance
+
+    @classmethod
+    def get_user_params(cls, context):
+        """Получает настройки пользователя из контекста или БД"""
+        # Ленивая инициализация БД
+        cls._init_db()
+
+        user_id, chat_id = cls._get_ids_from_context(context)
+
+        # 3) Определяем тип чата
+        is_private_chat = (chat_id == user_id)
+
+        # Ищем в соответствующем контексте
+        if is_private_chat and hasattr(context, 'user_data') and cls.USER_PARAMS in context.user_data:
+            return context.user_data[cls.USER_PARAMS]
+        elif not is_private_chat and hasattr(context, 'bot_data'):
+            search_context_key = f"group_search_{chat_id}"
+            if search_context_key in context.bot_data and cls.USER_PARAMS in context.bot_data[search_context_key]:
+                return context.bot_data[search_context_key][cls.USER_PARAMS]
+
+        # Загружаем из БД
+        user_settings = cls._db_settings.get_user_settings(user_id)
+
+        # Сохраняем в соответствующий контекст
+        if is_private_chat and hasattr(context, 'user_data'):
+            context.user_data[cls.USER_PARAMS] = user_settings
+        elif not is_private_chat and hasattr(context, 'bot_data'):
+            search_context_key = f"group_search_{chat_id}"
+            if search_context_key not in context.bot_data:
+                context.bot_data[search_context_key] = {}
+            context.bot_data[search_context_key][cls.USER_PARAMS] = user_settings
+
+        return user_settings
+
+    @classmethod
+    def update_user_params(cls, context, **kwargs):
+        """Обновляет параметр пользователя в БД и контекстах"""
+        # Ленивая инициализация БД
+        cls._init_db()
+
+        user_id, chat_id = cls._get_ids_from_context(context)
+
+        # Обновляем в БД
+        cls._db_settings.update_user_settings(user_id, **kwargs)
+
+        # Определяем контекст для обновления
+        is_private_chat = (chat_id == user_id)
+        local_context = None
+
+        if is_private_chat and hasattr(context, 'user_data') and cls.USER_PARAMS in context.user_data:
+            local_context = context.user_data
+        elif not is_private_chat and hasattr(context, 'bot_data'):
+            search_context_key = f"group_search_{chat_id}"
+            if (search_context_key in context.bot_data and
+                    cls.USER_PARAMS in context.bot_data[search_context_key]):
+                local_context = context.bot_data[search_context_key]
+
+        # Обновляем в контексте
+        if local_context and cls.USER_PARAMS in local_context:
+            current_settings = local_context[cls.USER_PARAMS]._asdict()
+            current_settings.update(kwargs)
+            local_context[cls.USER_PARAMS] = cls._db_settings.UserSettingsType(**current_settings)
+
+    @classmethod
+    def _get_ids_from_context(cls, context):
+        """2) Извлекает user_id и chat_id из контекста"""
+        user_id = getattr(context, '_user_id', None)
+        chat_id = getattr(context, '_chat_id', None)
+        return user_id, chat_id
 
 
-# async def handle_toggle_search(query, context, action, params):
-#     """Обрабатывает переключение режима доп. поиска"""
-#     search_value = action.removeprefix('toggle_search_')
-#     current_values = context.user_data.get(SETTING_AUX_SEARCH, {})
-#     current_search = current_values.get(search_value, False)
-#
-#     current_search = not current_search
-#
-#     current_values[search_value] = current_search
-#     context.user_data[SETTING_AUX_SEARCH] = current_values
-#
-#     # Обновляем клавиатуру
-#     options = SETTING_OPTIONS[SETTING_AUX_SEARCH]
-#     reply_markup = create_aux_search_keyboard(current_values, options)
-#
-#     try:
-#         await query.edit_message_text(SETTING_TITLES[SETTING_AUX_SEARCH], reply_markup=reply_markup)
-#     except BadRequest as e:
-#         if "Message is not modified" not in str(e):
-#             raise e
-#
-#     logger.log_user_action(query.from_user, f"toggled search: {search_value}={current_search}")
+# Функции-обертки
+def get_user_params(context):
+    return ContextManager.get_user_params(context)
+
+
+def update_user_params(context, **kwargs):
+    return ContextManager.update_user_params(context, **kwargs)

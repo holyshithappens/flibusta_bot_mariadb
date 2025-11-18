@@ -11,7 +11,7 @@ from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, FLIBUSTA
 from utils import get_cover_url
 
 Book = namedtuple('Book', ['FileName', 'Title', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'BookSize', 'SearchYear', 'LibRate', 'SeriesTitle', 'Relevance'])
-UserSettings = namedtuple('UserSettings',['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate', 'IsBlocked', 'BookSize','SearchType', 'Rating', 'SearchArea'])
+# UserSettings = namedtuple('UserSettings',['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate', 'IsBlocked', 'BookSize','SearchType', 'Rating', 'SearchArea'])
 
 # SQL-запросы
 # Базовые поля для SELECT
@@ -527,41 +527,49 @@ class DatabaseLogs(Database):
 
 # Класс для работы с БД настроек бота
 class DatabaseSettings(Database):
+    UserSettingsType = namedtuple('UserSettingsType',
+                              ['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate',
+                               'IsBlocked', 'BookSize', 'SearchType', 'Rating', 'SearchArea'])
+
     def __init__(self, db_path = FLIBUSTA_DB_SETTINGS_PATH):
         super().__init__(db_path)
 
-    def _initialize_database(self):
-        """Инициализирует БД настроек при первом подключении"""
-        with self.connect() as conn:
-            cursor = conn.cursor()
-
-            # Создаем таблицу если не существует
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS UserSettings (
-                    User_ID INTEGER NOT NULL UNIQUE,
-                    MaxBooks INTEGER NOT NULL DEFAULT 20,
-                    Lang VARCHAR(2) DEFAULT '',
-                    DateSortOrder VARCHAR(10) DEFAULT 'DESC',
-                    BookFormat VARCHAR(5) DEFAULT 'fb2',
-                    LastNewsDate VARCHAR(10) DEFAULT '2000-01-01',
-                    IsBlocked BOOLEAN DEFAULT FALSE,
-                    PRIMARY KEY(User_ID)
-                );
-            """)
-
-            # Создаем индекс если не существует
-            cursor.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS IXUserSettings_User_ID 
-                ON UserSettings (User_ID);
-            """)
-
-            conn.commit()
+    # def _initialize_database(self):
+    #     """Инициализирует БД настроек при первом подключении"""
+    #     with self.connect() as conn:
+    #         cursor = conn.cursor()
+    #
+    #         # Создаем таблицу если не существует
+    #         cursor.execute("""
+    #             CREATE TABLE IF NOT EXISTS UserSettings (
+    #                 User_ID INTEGER NOT NULL UNIQUE,
+    #                 MaxBooks INTEGER NOT NULL DEFAULT 20,
+    #                 Lang VARCHAR(2) DEFAULT '',
+    #                 DateSortOrder VARCHAR(10) DEFAULT 'DESC',
+    #                 BookFormat VARCHAR(5) DEFAULT 'fb2',
+    #                 LastNewsDate VARCHAR(10) DEFAULT '2000-01-01',
+    #                 IsBlocked BOOLEAN DEFAULT FALSE,
+    #                 BookSize TEXT DEFAULT '',
+    #                 SearchType TEXT DEFAULT 'books',
+    #                 Rating TEXT DEFAULT '',
+    #                 SearchArea TEXT DEFAULT 'b',
+    #                 PRIMARY KEY(User_ID)
+    #             );
+    #         """)
+    #
+    #         # Создаем индекс если не существует
+    #         cursor.execute("""
+    #             CREATE UNIQUE INDEX IF NOT EXISTS IXUserSettings_User_ID
+    #             ON UserSettings (User_ID);
+    #         """)
+    #
+    #         conn.commit()
 
     def get_user_settings(self,user_id):
         """
         Получает настройки пользователя из базы данных.
         """
-        fields = UserSettings._fields
+        fields = self.UserSettingsType._fields
         processed_fields = [field for field in fields]
         select_fields = ', '.join(processed_fields)
 
@@ -575,7 +583,7 @@ class DatabaseSettings(Database):
                 conn.commit()
                 cursor.execute(f"SELECT {select_fields} FROM UserSettings WHERE user_id = ?", (user_id,))
                 settings = cursor.fetchone()
-        return UserSettings(*settings)
+        return self.UserSettingsType(*settings)
 
     def update_user_settings(self, user_id, **kwargs):
         """
@@ -589,33 +597,34 @@ class DatabaseSettings(Database):
             values = list(kwargs.values()) + [user_id]
 
             cursor.execute(f"""
-                UPDATE UserSettings 
+                UPDATE UserSettings
                 SET {set_clause}
                 WHERE user_id = ?
             """, values)
 
             conn.commit()
 
-    def get_user_stats(self):
-        """Возвращает статистику пользователей"""
-        with self.connect() as conn:
-            cursor = conn.cursor()
+    # def get_user_stats(self):
+    #     """Возвращает статистику пользователей"""
+    #     with self.connect() as conn:
+    #         cursor = conn.cursor()
+    #
+    #         # Общая статистика
+    #         cursor.execute("""
+    #             SELECT
+    #                 COUNT(*) as total_users,
+    #                 SUM(CASE WHEN IsBlocked THEN 1 ELSE 0 END) as blocked_users,
+    #                 SUM(CASE WHEN LastNewsDate > '2000-01-01' THEN 1 ELSE 0 END) as active_users
+    #             FROM UserSettings
+    #         """)
+    #         stats = cursor.fetchone()
+    #
+    #         return {
+    #             'total_users': stats[0],
+    #             'blocked_users': stats[1],
+    #             'active_users': stats[2]
+    #         }
 
-            # Общая статистика
-            cursor.execute("""
-                SELECT 
-                    COUNT(*) as total_users,
-                    SUM(CASE WHEN IsBlocked THEN 1 ELSE 0 END) as blocked_users,
-                    SUM(CASE WHEN LastNewsDate > '2000-01-01' THEN 1 ELSE 0 END) as active_users
-                FROM UserSettings
-            """)
-            stats = cursor.fetchone()
-
-            return {
-                'total_users': stats[0],
-                'blocked_users': stats[1],
-                'active_users': stats[2]
-            }
 
 
 # Класс для работы с БД библиотеки
@@ -732,9 +741,6 @@ class DatabaseBooks():
         params = []
         # Пара одинаковых параметров в виде полного запроса для FullText поиска
         params.extend([query] * 2)
-        # if search_annotation:
-        #     # ещё пара тех же параметров для расширенного поиска по аннотациям
-        #     params.extend([query] * 2)
 
         # #DEBUG
         # print(f"DEBUG: sql_query = {sql_query}")
@@ -964,10 +970,6 @@ class DatabaseBooks():
         """Создает SQL-условие WHERE на основе списка слов и их операторов."""
         conditions = []
 
-        # params = []
-        # # Пара одинаковых параметров в виде полного запроса для FullText поиска
-        # params.extend([query] * 2)
-
         # Добавляем условие по языку, если задан в настройках пользователя
         if lang:
             conditions.append(f"SearchLang LIKE '{lang.upper()}'")
@@ -977,12 +979,6 @@ class DatabaseBooks():
             conditions.append(f"BookSizeCat = '{size_limit}'")
 
         # ДОБАВЛЯЕМ ФИЛЬТРАЦИЮ ПО РЕЙТИНГУ
-        # if rating_filter and rating_filter != '':
-        #     rating_values = [r.strip() for r in rating_filter.split(',') if r.strip()]
-        #     if rating_values:
-        #         rating_condition = f"LibRate IN ({', '.join(['%s'] * len(rating_values))})"
-        #         conditions.append(rating_condition)
-        #         params.extend(rating_values)
         if rating_filter and rating_filter != '':
             rating_condition = f"LibRate IN ({rating_filter})"
             conditions.append(rating_condition)
@@ -1007,9 +1003,6 @@ class DatabaseBooks():
         # Всегда используем sum для Relevance
         processed_fields = []
         for field in fields:
-            # if field == 'Relevance':
-            #     processed_fields.append(f"sum({field}) as {field}")
-            # else:
             processed_fields.append(f"max({field})")
 
         select_fields = ', '.join(processed_fields)
