@@ -247,11 +247,77 @@ def create_authors_keyboard(page, pages_of_authors):
     return keyboard
 
 
-def create_settings_menu():
+def create_settings_menu(context:CallbackContext):
     """Создает главное меню настроек"""
-    settings = [(text, setting_type) for setting_type, text in SETTING_TITLES.items()]
+    # settings = [(text, setting_type) for setting_type, text in SETTING_TITLES.items()]
+    # keyboard = [[InlineKeyboardButton(text, callback_data=f"set_{key}")] for text, key in settings]
+    keyboard = []
 
-    keyboard = [[InlineKeyboardButton(text, callback_data=f"set_{key}")] for text, key in settings]
+    for setting_type, text in SETTING_TITLES.items():
+        # Получаем текущее значение настройки, если передан контекст
+        current_display = ""
+        try:
+            user_params = get_user_params(context)
+            # Форматируем значение для отображения
+            if setting_type == SETTING_MAX_BOOKS:
+                current_value = user_params.MaxBooks
+                current_display = f"({current_value})"
+
+            elif setting_type == SETTING_LANG_SEARCH:
+                current_value = user_params.Lang
+                current_display = f"({current_value})" if current_value else ""
+
+            elif setting_type == SETTING_SORT_ORDER:
+                # Ищем отображаемое значение в списке настроек
+                current_value = user_params.DateSortOrder
+                for value, display in SETTING_OPTIONS[SETTING_SORT_ORDER]:
+                    if value == current_value:
+                        current_display = f"({display})"
+                        break
+
+            elif setting_type == SETTING_SIZE_LIMIT:
+                # Ищем отображаемое значение в списке настроек
+                current_value = user_params.BookSize
+                for value, display in SETTING_OPTIONS[SETTING_SIZE_LIMIT]:
+                    if value == current_value:
+                        current_display = f"({display})" if value else ""
+                        break
+
+            elif setting_type == SETTING_BOOK_FORMAT:
+                # Ищем отображаемое значение в списке настроек
+                current_value = user_params.BookFormat
+                current_display = f"({current_value})"
+
+            elif setting_type == SETTING_SEARCH_TYPE:
+                # Ищем отображаемое значение в списке настроек
+                current_value = user_params.SearchType
+                for value, display in SETTING_OPTIONS[SETTING_SEARCH_TYPE]:
+                    if value == current_value:
+                        current_display = f"({display})"
+                        break
+
+            elif setting_type == SETTING_RATING_FILTER:
+                current_value = user_params.Rating
+                if current_value:
+                    # Для рейтинга показываем только эмодзи
+                    ratings = current_value.split(',')
+                    emojis = "".join([BOOK_RATINGS.get(int(r), ("⚪️", ""))[0] for r in ratings if r])
+                    current_display = f"({emojis})" if emojis else ""
+
+            elif setting_type == SETTING_SEARCH_AREA:
+                # Ищем отображаемое значение в списке настроек
+                current_value = user_params.SearchArea
+                for value, display in SETTING_OPTIONS[SETTING_SEARCH_AREA]:
+                    if value == current_value:
+                        current_display = f"({display})"
+                        break
+
+        except Exception as e:
+            print(f"Error getting setting {setting_type}: {e}")
+
+        button_text = f"{text} {current_display}".strip()
+        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"set_{setting_type}")])
+
     return keyboard
 
 
@@ -1056,7 +1122,7 @@ async def handle_authors_page_change(query, context, action, params):
 # ===== НАСТРОЙКИ =====
 async def show_settings_menu(update_or_query, context, from_callback=False):
     """Показывает главное меню настроек"""
-    settings_keyboard = create_settings_menu()
+    settings_keyboard = create_settings_menu(context)
 
     # Добавляем кнопку закрытия без message_id
     add_close_button(settings_keyboard)

@@ -76,8 +76,8 @@ SETTING_OPTIONS = {
         (40, '40')
     ],
     SETTING_SORT_ORDER: [
-        ('asc', 'По возрастанию'),
-        ('desc', 'По убыванию')
+        ('asc', 'по возрастанию'),
+        ('desc', 'по убыванию')
     ],
     SETTING_SIZE_LIMIT: [
         ('less800', '<800K'),
@@ -90,9 +90,9 @@ SETTING_OPTIONS = {
         (BOOK_FORMAT_EPUB, 'EPUB')
     ],
     SETTING_SEARCH_TYPE: [
-        (SEARCH_TYPE_BOOKS, 'По книгам'),
-        (SEARCH_TYPE_SERIES, 'По сериям'),
-        (SEARCH_TYPE_AUTHORS, 'По авторам')
+        (SEARCH_TYPE_BOOKS, 'по книгам'),
+        (SEARCH_TYPE_SERIES, 'по сериям'),
+        (SEARCH_TYPE_AUTHORS, 'по авторам')
     ],
     # SETTING_RATING_FILTER: [
     #     (0, '⚪️ Без рейтинга (0)'),
@@ -106,8 +106,8 @@ SETTING_OPTIONS = {
         (key, f"{value[0]} {value[1]}") for key, value in BOOK_RATINGS.items()
     ],
     SETTING_SEARCH_AREA: [
-        (SETTING_SEARCH_AREA_B, 'По основным данным'),
-        (SETTING_SEARCH_AREA_BA, 'По аннотации книг')
+        (SETTING_SEARCH_AREA_B, 'по основным данным'),
+        (SETTING_SEARCH_AREA_BA, 'по аннотации книг')
     ]
 }
 

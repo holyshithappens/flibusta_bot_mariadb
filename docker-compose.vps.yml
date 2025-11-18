@@ -26,7 +26,7 @@ services:
       resources:
         limits:
           memory: 768M
-          cpus: '0.8'
+          cpus: '0.9'
     volumes:
       - mariadb_data:/var/lib/mysql  # Тот же volume
       - ./db_init:/docker-entrypoint-initdb.d:ro
@@ -50,7 +50,7 @@ services:
       resources:
         limits:
           memory: 256M
-          cpus: '0.4'
+          cpus: '0.9'
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
