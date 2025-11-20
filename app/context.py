@@ -101,11 +101,6 @@ class ContextManager:
     @classmethod
     def clear_search_data(cls, context):
         """Очищает все поисковые данные"""
-        # search_keys = [
-        #     BOOKS, PAGES_OF_BOOKS, FOUND_BOOKS_COUNT,
-        #     SERIES, PAGES_OF_SERIES, FOUND_SERIES_COUNT,
-        #     AUTHORS, PAGES_OF_AUTHORS, FOUND_AUTHORS_COUNT
-        # ]
         search_keys = [value for key, value in vars(CMConst.CMC_SearchData).items()
                        if not key.startswith('_')]
 

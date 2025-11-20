@@ -1022,9 +1022,9 @@ class DatabaseBooks():
             LIMIT {MAX_BOOKS_SEARCH}
         """
 
+        # SELECT COUNT(*) FROM(SELECT {select_fields} {from_clause} GROUP BY {fields[0]}) as subquery2
         sql_query_cnt = f"""
-            SELECT COUNT(*) 
-            FROM (SELECT {select_fields} {from_clause} GROUP BY {fields[0]}) as subquery2
+            SELECT COUNT(*) FROM ({sql_query}) as subquery2
         """
 
         return sql_query, sql_query_cnt

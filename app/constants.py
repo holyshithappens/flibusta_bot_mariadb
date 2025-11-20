@@ -94,14 +94,6 @@ SETTING_OPTIONS = {
         (SEARCH_TYPE_SERIES, 'по сериям'),
         (SEARCH_TYPE_AUTHORS, 'по авторам')
     ],
-    # SETTING_RATING_FILTER: [
-    #     (0, '⚪️ Без рейтинга (0)'),
-    #     (1, '🔴 Нечитаемо (1)'),
-    #     (2, '🟠 Плохо (2)'),
-    #     (3, '🟡 Неплохо (3)'),
-    #     (4, '🟢 Хорошо (4)'),
-    #     (5, '🔵 Отлично (5)')
-    # ],
     SETTING_RATING_FILTER: [
         (key, f"{value[0]} {value[1]}") for key, value in BOOK_RATINGS.items()
     ],
