@@ -7,7 +7,7 @@ from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKey
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext, ConversationHandler
 
-from handlers import get_user_params, update_user_params
+from context import get_user_params, update_user_params
 from database import DatabaseLogs
 
 # Добавляем константы для пагинации

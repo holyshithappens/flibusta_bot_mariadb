@@ -11,7 +11,6 @@ from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, FLIBUSTA
 from utils import get_cover_url
 
 Book = namedtuple('Book', ['FileName', 'Title', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'BookSize', 'SearchYear', 'LibRate', 'SeriesTitle', 'Relevance'])
-# UserSettings = namedtuple('UserSettings',['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate', 'IsBlocked', 'BookSize','SearchType', 'Rating', 'SearchArea'])
 
 # SQL-запросы
 # Базовые поля для SELECT
@@ -1028,3 +1027,12 @@ class DatabaseBooks():
         """
 
         return sql_query, sql_query_cnt
+
+DB_BOOKS = DatabaseBooks({
+    'host': os.getenv('DB_HOST'),
+    'port': int(os.getenv('DB_PORT', 3306)),
+    'database': os.getenv('DB_NAME'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'charset': os.getenv('DB_CHARSET', 'utf8mb4')
+})

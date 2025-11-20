@@ -1,11 +1,10 @@
 from datetime import datetime
 import os
-from typing import List, Dict, Any
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, LabeledPrice
 from telegram.constants import ParseMode
 from telegram.error import TimedOut, BadRequest, Forbidden
-from telegram.ext import CallbackContext, ContextTypes
+from telegram.ext import CallbackContext
 
 
 from constants import FLIBUSTA_BASE_URL, DEFAULT_BOOK_FORMAT, \

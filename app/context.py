@@ -1,7 +1,9 @@
-# Константы для ключей контекста
+from telegram.ext import CallbackContext
+
 from datetime import datetime
 
 
+# Константы для ключей контекста
 class CMConst:
     class CMC_UserParams:
         USER_PARAMS = 'USER_PARAMS'
@@ -42,20 +44,20 @@ class ContextManager:
             cls._db_settings = DatabaseSettings()
 
     @classmethod
-    def _get_ids_from_context(cls, context):
+    def _get_ids_from_context(cls, context: CallbackContext):
         """Извлекает user_id и chat_id из контекста"""
         user_id = getattr(context, '_user_id', None)
         chat_id = getattr(context, '_chat_id', None)
         return user_id, chat_id
 
     @classmethod
-    def _get_bot_context_key(cls, context):
+    def _get_bot_context_key(cls, context: CallbackContext):
         """Формирует ключ данных в контексте бота по char_id"""
         user_id, chat_id = cls._get_ids_from_context(context)
         return f"group_search_{chat_id}"
 
     @classmethod
-    def _get_context_data(cls, context):
+    def _get_context_data(cls, context: CallbackContext):
         """Получает соответствующий словарь контекста с автоматическим определением типа чата"""
         user_id, chat_id = cls._get_ids_from_context(context)
         is_private_chat = (user_id == chat_id)
@@ -71,7 +73,7 @@ class ContextManager:
             return {}
 
     @classmethod
-    def get(cls, context, key, default=None):
+    def get(cls, context: CallbackContext, key, default=None):
         """Универсальный геттер для контекста"""
         # Особый случай для USER_PARAMS - загружаем из БД при необходимости
         if key == CMConst.CMC_UserParams.USER_PARAMS:
@@ -81,7 +83,7 @@ class ContextManager:
         return data.get(key, default)
 
     @classmethod
-    def set(cls, context, key, value):
+    def set(cls, context: CallbackContext, key, value):
         """Универсальный сеттер для контекста"""
         # Особый случай для USER_PARAMS - обновляем в БД
         if key == CMConst.CMC_UserParams.USER_PARAMS:
@@ -92,14 +94,14 @@ class ContextManager:
         data[key] = value
 
     @classmethod
-    def delete(cls, context, key):
+    def delete(cls, context: CallbackContext, key):
         """Удаляет ключ из контекста"""
         data = cls._get_context_data(context)
         if key in data:
             del data[key]
 
     @classmethod
-    def clear_search_data(cls, context):
+    def clear_search_data(cls, context: CallbackContext):
         """Очищает все поисковые данные"""
         search_keys = [value for key, value in vars(CMConst.CMC_SearchData).items()
                        if not key.startswith('_')]
@@ -110,7 +112,7 @@ class ContextManager:
                 del data[key]
 
     @classmethod
-    def _get_user_params(cls, context):
+    def _get_user_params(cls, context: CallbackContext):
         """Получает настройки пользователя из контекста или БД"""
         cls._init_db()
         user_id, chat_id = cls._get_ids_from_context(context)
@@ -132,7 +134,7 @@ class ContextManager:
         return user_settings
 
     @classmethod
-    def _update_user_params(cls, context, user_params):
+    def _update_user_params(cls, context: CallbackContext, user_params):
         """Обновляет настройки пользователя в БД и контексте"""
         cls._init_db()
         user_id, chat_id = cls._get_ids_from_context(context)
@@ -149,7 +151,7 @@ class ContextManager:
         data[CMConst.CMC_UserParams.USER_PARAMS] = user_params
 
     @classmethod
-    def update_user_params_partial(cls, context, **kwargs):
+    def update_user_params_partial(cls, context: CallbackContext, **kwargs):
         """Частичное обновление настроек пользователя"""
         cls._init_db()
         user_id, chat_id = cls._get_ids_from_context(context)
@@ -215,81 +217,81 @@ class ContextManager:
 
 
 # Специализированные геттеры для часто используемых ключей
-def set_last_activity(context, dt):
+def set_last_activity(context: CallbackContext, dt):
     ContextManager.set(context, CMConst.CMC_Proc.LAST_ACTIVITY, dt)
 
-def get_last_series_page(context):
+def get_last_series_page(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_Proc.LAST_SERIES_PAGE)
 
-def set_last_series_page(context, page):
+def set_last_series_page(context: CallbackContext, page):
     ContextManager.set(context, CMConst.CMC_Proc.LAST_SERIES_PAGE, page)
 
-def get_last_authors_page(context):
+def get_last_authors_page(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_Proc.LAST_AUTHORS_PAGE)
 
-def set_last_authors_page(context, page):
+def set_last_authors_page(context: CallbackContext, page):
     ContextManager.set(context, CMConst.CMC_Proc.LAST_AUTHORS_PAGE, page)
 
-def get_current_series_name(context):
+def get_current_series_name(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_Proc.CURRENT_SERIES_NAME)
 
-def set_current_series_name(context, series):
+def set_current_series_name(context: CallbackContext, series):
     ContextManager.set(context, CMConst.CMC_Proc.CURRENT_SERIES_NAME, series)
 
-def get_current_author_id(context):
+def get_current_author_id(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_Proc.CURRENT_AUTHOR_ID)
 
-def set_current_author_id(context, author_id):
+def set_current_author_id(context: CallbackContext, author_id):
     ContextManager.set(context, CMConst.CMC_Proc.CURRENT_AUTHOR_ID, author_id)
 
-def get_current_author_name(context):
+def get_current_author_name(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_Proc.CURRENT_AUTHOR_NAME)
 
-def set_current_author_name(context, author_name):
+def set_current_author_name(context: CallbackContext, author_name):
     ContextManager.set(context, CMConst.CMC_Proc.CURRENT_AUTHOR_NAME, author_name)
 
-def get_last_bot_message_id(context):
+def get_last_bot_message_id(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_Proc.LAST_BOT_MESSAGE_ID)
 
-def set_last_bot_message_id(context, message_id):
+def set_last_bot_message_id(context: CallbackContext, message_id):
     ContextManager.set(context, CMConst.CMC_Proc.LAST_BOT_MESSAGE_ID, message_id)
 
-def get_last_search_query(context):
+def get_last_search_query(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_Proc.LAST_SEARCH_QUERY)
 
-def set_last_search_query(context, query):
+def set_last_search_query(context: CallbackContext, query):
     ContextManager.set(context, CMConst.CMC_Proc.LAST_SEARCH_QUERY, query)
 
 # Данные поиска
-def get_pages_of_books(context):
+def get_pages_of_books(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_SearchData.PAGES_OF_BOOKS)
 
-def get_pages_of_series(context):
+def get_pages_of_series(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_SearchData.PAGES_OF_SERIES)
 
-def get_pages_of_authors(context):
+def get_pages_of_authors(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_SearchData.PAGES_OF_AUTHORS)
 
-def get_found_books_count(context):
+def get_found_books_count(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_SearchData.FOUND_BOOKS_COUNT)
 
-def get_found_series_count(context):
+def get_found_series_count(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_SearchData.FOUND_SERIES_COUNT)
 
-def get_found_authors_count(context):
+def get_found_authors_count(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_SearchData.FOUND_AUTHORS_COUNT)
 
-def set_books(context, books, pages, count):
+def set_books(context: CallbackContext, books, pages, count):
     ContextManager.set(context, CMConst.CMC_SearchData.BOOKS, books)
     ContextManager.set(context, CMConst.CMC_SearchData.PAGES_OF_BOOKS, pages)
     ContextManager.set(context, CMConst.CMC_SearchData.FOUND_BOOKS_COUNT, count)
 
-def set_series(context, series, pages, count):
+def set_series(context: CallbackContext, series, pages, count):
     ContextManager.set(context, CMConst.CMC_SearchData.SERIES, series)
     ContextManager.set(context, CMConst.CMC_SearchData.PAGES_OF_SERIES, pages)
     ContextManager.set(context, CMConst.CMC_SearchData.FOUND_SERIES_COUNT, count)
 
-def set_authors(context,authors, pages, count):
+def set_authors(context: CallbackContext,authors, pages, count):
     ContextManager.set(context, CMConst.CMC_SearchData.AUTHORS, authors)
     ContextManager.set(context, CMConst.CMC_SearchData.PAGES_OF_AUTHORS, pages)
     ContextManager.set(context, CMConst.CMC_SearchData.FOUND_AUTHORS_COUNT, count)
@@ -297,7 +299,7 @@ def set_authors(context,authors, pages, count):
 
 
 # Специальные функции для USER_PARAMS
-def get_user_params(context):
+def get_user_params(context: CallbackContext):
     """Получает настройки пользователя (с загрузкой из БД при необходимости)"""
     return ContextManager.get(context, CMConst.CMC_UserParams.USER_PARAMS)
 

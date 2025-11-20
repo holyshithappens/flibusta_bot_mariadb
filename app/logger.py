@@ -71,7 +71,7 @@ class SingletonLogger:
         info = f"System action: {action}/{detail}"
 
         # #debug
-        print(f"DEBUG: {info}")
+        # print(f"DEBUG: {info}")
         # print(user)
 
         if self.logger:

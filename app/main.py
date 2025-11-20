@@ -6,8 +6,12 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from telegram.request import HTTPXRequest
 from telegram.error import Forbidden, BadRequest, TimedOut
 
-from handlers import handle_message, button_callback, start_cmd, genres_cmd, langs_cmd, settings_cmd, donate_cmd, \
-    help_cmd, about_cmd, news_cmd, handle_group_message
+from handlers_basic import start_cmd, genres_cmd, langs_cmd, settings_cmd, donate_cmd, help_cmd, about_cmd, news_cmd
+from handlers_search import handle_message
+from handlers_callback import button_callback
+from handlers_group import handle_group_message
+# from handlers import handle_message, button_callback, start_cmd, genres_cmd, langs_cmd, settings_cmd, donate_cmd, \
+#      help_cmd, about_cmd, news_cmd, handle_group_message
 from admin import admin_cmd, cancel_auth, auth_password, AUTH_PASSWORD, handle_admin_buttons, ADMIN_BUTTONS
 from constants import CLEANUP_INTERVAL
 from health import cleanup_old_sessions
