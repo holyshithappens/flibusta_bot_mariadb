@@ -33,7 +33,8 @@ def format_size(size_in_bytes):
     return f"{size_in_bytes:.1f}{units[unit_index]}"
 
 
-def form_header_books(page, max_books, found_count, search_type='книг', series_name=None, author_name=None, search_area=SETTING_SEARCH_AREA_B):
+def form_header_books(page, max_books, found_count, search_type='книг', series_name=None, author_name=None,
+                      search_area=SETTING_SEARCH_AREA_B):
     """ Оформление заголовка сообщения с результатом поиска книг """
     start = max_books * page + 1
     end = min(max_books * (page + 1), found_count)

@@ -7,16 +7,24 @@ from telegram.constants import ParseMode
 from telegram.error import TimedOut, BadRequest, Forbidden
 from telegram.ext import CallbackContext, ContextTypes
 
-from database import DatabaseBooks, DatabaseSettings
+
 from constants import FLIBUSTA_BASE_URL, DEFAULT_BOOK_FORMAT, \
     SETTING_MAX_BOOKS, SETTING_LANG_SEARCH, SETTING_SORT_ORDER, SETTING_SIZE_LIMIT, \
     SETTING_BOOK_FORMAT, SETTING_SEARCH_TYPE, SETTING_OPTIONS, SETTING_TITLES, SETTING_RATING_FILTER, BOOK_RATINGS, \
     BOT_NEWS_FILE_PATH, SETTING_SEARCH_AREA, SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA, SEARCH_TYPE_BOOKS, \
     SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS
-from health import log_stats
+from context import set_last_activity, set_series, set_last_series_page, \
+    set_authors, set_last_authors_page, get_pages_of_books, get_found_books_count, get_pages_of_series, \
+    get_found_series_count, get_pages_of_authors, get_found_authors_count, set_last_search_query, \
+    set_last_bot_message_id, get_user_params, update_user_params, set_books, \
+    get_last_bot_message_id, get_last_search_query, get_current_series_name, \
+    set_current_series_name, set_current_author_id, get_current_author_id, \
+    get_last_series_page, get_last_authors_page, set_current_author_name, get_current_author_name
 from utils import format_size, get_platform_recommendations, download_book_with_filename, upload_to_tmpfiles, \
     is_message_for_bot, extract_clean_query, get_latest_news, format_book_reviews, format_author_info, \
     format_book_details, format_book_info, form_header_books
+from database import DatabaseBooks
+from health import log_stats
 from logger import logger
 
 # ===== КОНСТАНТЫ И КОНФИГУРАЦИЯ =====
@@ -32,17 +40,17 @@ DB_BOOKS = DatabaseBooks({
 
 # USER_PARAMS = 'USER_PARAMS'
 
-BOOKS = 'BOOKS'
-PAGES_OF_BOOKS = 'PAGES_OF_BOOKS'
-FOUND_BOOKS_COUNT = 'FOUND_BOOKS_COUNT'
-
-SERIES = 'SERIES'
-PAGES_OF_SERIES = 'PAGES_OF_SERIES'
-FOUND_SERIES_COUNT = 'FOUND_SERIES_COUNT'
-
-AUTHORS = 'AUTHORS'
-PAGES_OF_AUTHORS = 'PAGES_OF_AUTHORS'
-FOUND_AUTHORS_COUNT = 'FOUND_AUTHORS_COUNT'
+# BOOKS = 'BOOKS'
+# PAGES_OF_BOOKS = 'PAGES_OF_BOOKS'
+# FOUND_BOOKS_COUNT = 'FOUND_BOOKS_COUNT'
+#
+# SERIES = 'SERIES'
+# PAGES_OF_SERIES = 'PAGES_OF_SERIES'
+# FOUND_SERIES_COUNT = 'FOUND_SERIES_COUNT'
+#
+# AUTHORS = 'AUTHORS'
+# PAGES_OF_AUTHORS = 'PAGES_OF_AUTHORS'
+# FOUND_AUTHORS_COUNT = 'FOUND_AUTHORS_COUNT'
 
 CONTACT_INFO = {'email': os.getenv("FEEDBACK_EMAIL", "не указан"), 'pikabu': os.getenv("FEEDBACK_PIKABU", ""),
                 'pikabu_username': os.getenv("FEEDBACK_PIKABU_USERNAME", "не указан")}
@@ -703,7 +711,8 @@ async def handle_search_books(update: Update, context: CallbackContext):
 
     # ЕСЛИ СООБЩЕНИЕ ОТРЕДАКТИРОВАНО - УДАЛЯЕМ ПРЕДЫДУЩИЙ РЕЗУЛЬТАТ
     if is_edited:
-        last_bot_message_id = context.user_data.get('last_bot_message_id')
+        # last_bot_message_id = context.user_data.get('last_bot_message_id')
+        last_bot_message_id = get_last_bot_message_id(context)
         if last_bot_message_id:
             try:
                 await context.bot.delete_message(
@@ -746,10 +755,12 @@ async def handle_search_books(update: Update, context: CallbackContext):
             )
             result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
 
-        context.user_data[BOOKS] = books
-        context.user_data[PAGES_OF_BOOKS] = pages_of_books
-        context.user_data[FOUND_BOOKS_COUNT] = found_books_count
-        context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+        # context.user_data[BOOKS] = books
+        # context.user_data[PAGES_OF_BOOKS] = pages_of_books
+        # context.user_data[FOUND_BOOKS_COUNT] = found_books_count
+        set_books(context, books, pages_of_books, found_books_count)
+        # context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+        set_last_activity(context, datetime.now()) # Сохраняем время поиска
     else:
         search_annotation_text = "ВКЛЮЧЕН" if user_params.SearchArea == SETTING_SEARCH_AREA_BA else "ВЫКЛЮЧЕН"
         result_message = await message.reply_text(
@@ -759,8 +770,10 @@ async def handle_search_books(update: Update, context: CallbackContext):
         )
 
     # СОХРАНЯЕМ ID СООБЩЕНИЯ С РЕЗУЛЬТАТАМИ И ЗАПРОС
-    context.user_data['last_bot_message_id'] = result_message.message_id
-    context.user_data['last_search_query'] = query_text
+    # context.user_data['last_bot_message_id'] = result_message.message_id
+    set_last_bot_message_id(context, result_message.message_id)
+    # context.user_data['last_search_query'] = query_text
+    set_last_search_query(context, query_text)
 
     logger.log_user_action(user, "searched for books", f"{query_text}; count:{found_books_count}")
 
@@ -775,7 +788,8 @@ async def handle_search_series(update: Update, context: CallbackContext):
 
     # ЕСЛИ СООБЩЕНИЕ ОТРЕДАКТИРОВАНО - УДАЛЯЕМ ПРЕДЫДУЩИЙ РЕЗУЛЬТАТ
     if is_edited:
-        last_bot_message_id = context.user_data.get('last_bot_message_id')
+        # last_bot_message_id = context.user_data.get('last_bot_message_id')
+        last_bot_message_id = get_last_bot_message_id(context)
         if last_bot_message_id:
             try:
                 await context.bot.delete_message(
@@ -817,17 +831,22 @@ async def handle_search_series(update: Update, context: CallbackContext):
             )
             result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
 
-        context.user_data[SERIES] = series
-        context.user_data[PAGES_OF_SERIES] = pages_of_series
-        context.user_data[FOUND_SERIES_COUNT] = found_series_count
-        context.user_data['last_series_page'] = page  # Сохраняем текущую страницу
-        context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+        # context.user_data[SERIES] = series
+        # context.user_data[PAGES_OF_SERIES] = pages_of_series
+        # context.user_data[FOUND_SERIES_COUNT] = found_series_count
+        set_series(context, series, pages_of_series, found_series_count)
+        # context.user_data['last_series_page'] = page  # Сохраняем текущую страницу
+        set_last_series_page(context, page)  # Сохраняем текущую страницу
+        # context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+        set_last_activity(context, datetime.now())  # Сохраняем время поиска
     else:
         result_message = await message.reply_text("😞 Не нашёл подходящих книжных серий. Попробуйте другие критерии поиска")
 
     # СОХРАНЯЕМ ID СООБЩЕНИЯ С РЕЗУЛЬТАТАМИ И ЗАПРОС
-    context.user_data['last_bot_message_id'] = result_message.message_id
-    context.user_data['last_search_query'] = query_text
+    # context.user_data['last_bot_message_id'] = result_message.message_id
+    set_last_bot_message_id(context, result_message.message_id)
+    # context.user_data['last_search_query'] = query_text
+    set_last_search_query(context, query_text)
 
     logger.log_user_action(user, "searched for series", f"{query_text}; count:{found_series_count}")
 
@@ -842,7 +861,8 @@ async def handle_search_series_books(query, context, action, params):
         user_params = get_user_params(context)
 
         # Ищем книги серии в комбинации с предыдущим запросом
-        query_text = f"{context.user_data['last_search_query']}"
+        # query_text = f"{context.user_data['last_search_query']}"
+        query_text = get_last_search_query(context)
 
         # print(f"DEBUG: query_text = {query_text}")
 
@@ -854,22 +874,25 @@ async def handle_search_series_books(query, context, action, params):
 
         if books:
             pages_of_books = [books[i:i + user_params.MaxBooks] for i in range(0, len(books), user_params.MaxBooks)]
-            context.user_data[BOOKS] = books
-            context.user_data[PAGES_OF_BOOKS] = pages_of_books
-            context.user_data[FOUND_BOOKS_COUNT] = found_books_count
-            context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+            # context.user_data[BOOKS] = books
+            # context.user_data[PAGES_OF_BOOKS] = pages_of_books
+            # context.user_data[FOUND_BOOKS_COUNT] = found_books_count
+            set_books(context, books, pages_of_books, found_books_count)
+            # context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+            set_last_activity(context, datetime.now())  # Сохраняем время поиска
             # Извлекаем имя серии из данных первой книги
             series_name = books[0].SeriesTitle
+            set_current_series_name(context, series_name)
 
             page = 0
             keyboard = create_books_keyboard(page, pages_of_books, SEARCH_TYPE_SERIES)
 
-            # Добавляем кнопку возврата к сериям
             if keyboard:
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
                 header_text = form_header_books(
-                    page, user_params.MaxBooks, found_books_count, 'книг', series_name,
+                    page, user_params.MaxBooks, found_books_count, 'книг',
+                    series_name=series_name,
                     search_area=user_params.SearchArea
                 )
                 await query.edit_message_text(header_text, reply_markup=reply_markup)
@@ -890,7 +913,8 @@ async def handle_search_authors(update: Update, context: CallbackContext):
 
     # ЕСЛИ СООБЩЕНИЕ ОТРЕДАКТИРОВАНО - УДАЛЯЕМ ПРЕДЫДУЩИЙ РЕЗУЛЬТАТ
     if is_edited:
-        last_bot_message_id = context.user_data.get('last_bot_message_id')
+        # last_bot_message_id = context.user_data.get('last_bot_message_id')
+        last_bot_message_id = get_last_bot_message_id(context)
         if last_bot_message_id:
             try:
                 await context.bot.delete_message(
@@ -932,17 +956,22 @@ async def handle_search_authors(update: Update, context: CallbackContext):
             )
             result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
 
-        context.user_data[AUTHORS] = authors
-        context.user_data[PAGES_OF_AUTHORS] = pages_of_authors
-        context.user_data[FOUND_AUTHORS_COUNT] = found_authors_count
-        context.user_data['last_authors_page'] = page  # Сохраняем текущую страницу
-        context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+        # context.user_data[AUTHORS] = authors
+        # context.user_data[PAGES_OF_AUTHORS] = pages_of_authors
+        # context.user_data[FOUND_AUTHORS_COUNT] = found_authors_count
+        set_authors(context, authors, pages_of_authors, found_authors_count)
+        # context.user_data['last_authors_page'] = page  # Сохраняем текущую страницу
+        set_last_authors_page(context, page)  # Сохраняем текущую страницу
+        # context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+        set_last_activity(context, datetime.now())  # Сохраняем время поиска
     else:
         result_message = await message.reply_text("😞 Не нашёл подходящих авторов. Попробуйте другие критерии поиска")
 
     # СОХРАНЯЕМ ID СООБЩЕНИЯ С РЕЗУЛЬТАТАМИ И ЗАПРОС
-    context.user_data['last_bot_message_id'] = result_message.message_id
-    context.user_data['last_search_query'] = query_text
+    # context.user_data['last_bot_message_id'] = result_message.message_id
+    set_last_bot_message_id(context, result_message.message_id)
+    # context.user_data['last_search_query'] = query_text
+    set_last_search_query(context, query_text)
 
     logger.log_user_action(user, "searched for authors", f"{query_text}; count:{found_authors_count}")
 
@@ -957,7 +986,8 @@ async def handle_search_author_books(query, context, action, params):
         user_params = get_user_params(context)
 
         # Ищем книги автора в комбинации с предыдущим запросом
-        query_text = f"{context.user_data['last_search_query']}"
+        # query_text = f"{context.user_data['last_search_query']}"
+        query_text = get_last_search_query(context)
 
         books, found_books_count = DB_BOOKS.search_books(
             query_text, user_params.Lang, user_params.DateSortOrder, user_params.BookSize, user_params.Rating,
@@ -967,13 +997,18 @@ async def handle_search_author_books(query, context, action, params):
 
         if books:
             pages_of_books = [books[i:i + user_params.MaxBooks] for i in range(0, len(books), user_params.MaxBooks)]
-            context.user_data[BOOKS] = books
-            context.user_data[PAGES_OF_BOOKS] = pages_of_books
-            context.user_data[FOUND_BOOKS_COUNT] = found_books_count
-            context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
-            context.user_data['author_id'] = author_id # Сохраняем ID автора
+            # context.user_data[BOOKS] = books
+            # context.user_data[PAGES_OF_BOOKS] = pages_of_books
+            # context.user_data[FOUND_BOOKS_COUNT] = found_books_count
+            set_books(context, books, pages_of_books, found_books_count)
+            # context.user_data['last_activity'] = datetime.now()  # Сохраняем время поиска
+            set_last_activity(context, datetime.now())
+            # context.user_data['author_id'] = author_id # Сохраняем ID автора
+            set_current_author_id(context, author_id)
+
             # Имя автора из первой книги
             author_name = f"{books[0].LastName} {books[0].FirstName} {books[0].MiddleName}"
+            set_current_author_name(context, author_name)
 
             page = 0
             keyboard = create_books_keyboard(page, pages_of_books, SEARCH_TYPE_AUTHORS)
@@ -982,7 +1017,8 @@ async def handle_search_author_books(query, context, action, params):
             if keyboard:
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 header_text = form_header_books(
-                    page, user_params.MaxBooks, found_books_count, 'книг', author_name=author_name,
+                    page, user_params.MaxBooks, found_books_count, 'книг',
+                    author_name=author_name,
                     search_area=user_params.SearchArea
                 )
                 await query.edit_message_text(header_text, reply_markup=reply_markup)
@@ -1000,31 +1036,41 @@ async def handle_page_change(query, context, action, params):
     """Обрабатывает смену страницы с проверкой данных"""
     try:
         # Проверяем, что данные поиска еще существуют
-        if PAGES_OF_BOOKS not in context.user_data or not context.user_data[PAGES_OF_BOOKS]:
+        # if PAGES_OF_BOOKS not in context.user_data or not context.user_data[PAGES_OF_BOOKS]:
+        pages_of_books = get_pages_of_books(context)
+        if not pages_of_books:
             await query.edit_message_text("❌ Сессия поиска истекла. Начните поиск заново.")
             return
 
         page = int(action.removeprefix('page_'))
-        pages_of_books = context.user_data.get(PAGES_OF_BOOKS)
+        # pages_of_books = context.user_data.get(PAGES_OF_BOOKS)
         # Определяем контекст поиска
         # user_params = context.user_data.get(USER_PARAMS)
         user_params = get_user_params(context)
         search_context = user_params.SearchType
         keyboard = create_books_keyboard(page, pages_of_books, search_context)
         if search_context == SEARCH_TYPE_AUTHORS:
-            author_id = context.user_data['author_id']
+            # author_id = context.user_data['author_id']
+            author_id = get_current_author_id(context)
             keyboard.append([InlineKeyboardButton("👤 Об авторе", callback_data=f"author_info:{author_id}")])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
-            found_books_count = context.user_data.get(FOUND_BOOKS_COUNT)
+            # found_books_count = context.user_data.get(FOUND_BOOKS_COUNT)
+            found_books_count = get_found_books_count(context)
             # Формируем заголовок в зависимости от контекста
             series_name = None
+            author_name = None
             if search_context == SEARCH_TYPE_SERIES:
-                series_name = context.user_data.get('current_series_name', None)
+                # series_name = context.user_data.get('current_series_name', None)
+                series_name = get_current_series_name(context)
+            elif search_context == SEARCH_TYPE_AUTHORS:
+                author_name = get_current_author_name(context)
             header_text = form_header_books(
-                page, user_params.MaxBooks, found_books_count, 'книг', series_name,
+                page, user_params.MaxBooks, found_books_count, 'книг',
+                series_name=series_name,
+                author_name=author_name,
                 search_area=user_params.SearchArea
             )
             await query.edit_message_text(header_text, reply_markup=reply_markup)
@@ -1041,7 +1087,9 @@ async def handle_page_change(query, context, action, params):
 async def handle_series_page_change(query, context, action, params):
     try:
         # Проверяем, что данные серий еще существуют
-        if 'PAGES_OF_SERIES' not in context.user_data or not context.user_data['PAGES_OF_SERIES']:
+        pages_of_series = get_pages_of_series(context)
+        # if 'PAGES_OF_SERIES' not in context.user_data or not context.user_data['PAGES_OF_SERIES']:
+        if not pages_of_series:
             await query.answer("❌ Результаты поиска устарели. Выполните новый поиск.")
             await query.edit_message_text(
                 "🕒 <b>Результаты поиска устарели</b>\n\n"
@@ -1051,12 +1099,13 @@ async def handle_series_page_change(query, context, action, params):
             return
 
         page = int(action.removeprefix('series_page_'))
-        pages_of_series = context.user_data.get(PAGES_OF_SERIES)
+        # pages_of_series = context.user_data.get(PAGES_OF_SERIES)
         keyboard = create_series_keyboard(page, pages_of_series)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
-            found_series_count = context.user_data.get(FOUND_SERIES_COUNT)
+            # found_series_count = context.user_data.get(FOUND_SERIES_COUNT)
+            found_series_count = get_found_series_count(context)
             # user_params = context.user_data.get(USER_PARAMS)
             user_params = get_user_params(context)
             search_area = user_params.SearchArea
@@ -1067,7 +1116,8 @@ async def handle_series_page_change(query, context, action, params):
             )
             await query.edit_message_text(header_found_text, reply_markup=reply_markup)
 
-        context.user_data['last_series_page'] = page  # Сохраняем текущую страницу
+        # context.user_data['last_series_page'] = page  # Сохраняем текущую страницу
+        set_last_series_page(context, page)  # Сохраняем текущую страницу
 
     except ValueError:
         await query.answer("❌ Ошибка в номере страницы")
@@ -1082,7 +1132,9 @@ async def handle_authors_page_change(query, context, action, params):
     """ Обновляем обработчик смены страниц для авторов """
     try:
         # Проверяем, что данные авторов еще существуют
-        if 'PAGES_OF_AUTHORS' not in context.user_data or not context.user_data['PAGES_OF_AUTHORS']:
+        pages_of_authors = get_pages_of_authors(context)
+        # if 'PAGES_OF_AUTHORS' not in context.user_data or not context.user_data['PAGES_OF_AUTHORS']:
+        if not pages_of_authors:
             await query.answer("❌ Результаты поиска устарели. Выполните новый поиск.")
             await query.edit_message_text(
                 "🕒 <b>Результаты поиска устарели</b>\n\n"
@@ -1092,12 +1144,13 @@ async def handle_authors_page_change(query, context, action, params):
             return
 
         page = int(action.removeprefix('authors_page_'))
-        pages_of_authors = context.user_data.get(PAGES_OF_AUTHORS)
+        # pages_of_authors = context.user_data.get(PAGES_OF_AUTHORS)
         keyboard = create_authors_keyboard(page, pages_of_authors)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
-            found_authors_count = context.user_data.get(FOUND_AUTHORS_COUNT)
+            # found_authors_count = context.user_data.get(FOUND_AUTHORS_COUNT)
+            found_authors_count = get_found_authors_count(context)
             # user_params = context.user_data.get(USER_PARAMS)
             user_params = get_user_params(context)
             search_area = user_params.SearchArea
@@ -1108,7 +1161,8 @@ async def handle_authors_page_change(query, context, action, params):
             )
             await query.edit_message_text(header_found_text, reply_markup=reply_markup)
 
-        context.user_data['last_authors_page'] = page  # Сохраняем текущую страницу
+        # context.user_data['last_authors_page'] = page  # Сохраняем текущую страницу
+        set_last_authors_page(context, page)
 
     except ValueError:
         await query.answer("❌ Ошибка в номере страницы")
@@ -1365,8 +1419,8 @@ async def handle_book_info(query, context, action, params):
         reply_markup = InlineKeyboardMarkup(keyboard)
         await info_message.edit_reply_markup(reply_markup)
 
-        # Сохраняем ID сообщения с информацией для возможности удаления
-        context.user_data['last_book_info_message_id'] = info_message.message_id
+        # # Сохраняем ID сообщения с информацией для возможности удаления
+        # context.user_data['last_book_info_message_id'] = info_message.message_id
 
     except Exception as e:
         print(f"Error in handle_book_info: {e}")
@@ -1520,7 +1574,8 @@ async def handle_group_search(update: Update, context: CallbackContext):
         search_context_key = f"group_search_{chat.id}"
         # ЕСЛИ СООБЩЕНИЕ ОТРЕДАКТИРОВАНО - УДАЛЯЕМ ПРЕДЫДУЩИЙ РЕЗУЛЬТАТ
         if is_edited:
-            last_bot_message_id = context.bot_data[search_context_key].get('last_bot_message_id')
+            # last_bot_message_id = context.bot_data[search_context_key].get('last_bot_message_id')
+            last_bot_message_id = get_last_bot_message_id(context)
             if last_bot_message_id:
                 try:
                     await context.bot.delete_message(
@@ -1575,16 +1630,21 @@ async def handle_group_search(update: Update, context: CallbackContext):
                 )
 
                 # Сохраняем контекст поиска в bot_data (доступно всем пользователям группы)
-                context.bot_data[search_context_key] = {
-                    BOOKS: books,
-                    PAGES_OF_BOOKS: pages_of_books,
-                    FOUND_BOOKS_COUNT: found_books_count,
-                    # USER_PARAMS: user_params,
-                    # 'user': user,
-                    'query': clean_query_text,
-                    'last_activity': datetime.now(),
-                    'last_bot_message_id': result_message.message_id
-                }
+                # context.bot_data[search_context_key] = {
+                #     BOOKS: books,
+                #     PAGES_OF_BOOKS: pages_of_books,
+                #     FOUND_BOOKS_COUNT: found_books_count,
+                #     # USER_PARAMS: user_params,
+                #     # 'user': user,
+                #     'query': clean_query_text,
+                #     'last_activity': datetime.now(),
+                #     'last_bot_message_id': result_message.message_id
+                # }
+                set_books(context, books, pages_of_books, found_books_count)
+                set_last_search_query(context, clean_query_text)
+                set_last_activity(context, datetime.now())
+                set_last_bot_message_id(context, result_message.message_id)
+
                 # Обновляем настройки пользователя - преобразуем в словарь
                 user_params_dict = user_params._asdict()  # namedtuple в словарь
                 update_user_params(context, **user_params_dict)
@@ -1597,9 +1657,10 @@ async def handle_group_search(update: Update, context: CallbackContext):
                 reply_to_message_id=message.message_id
             )
             # Сохраняем контекст поиска в bot_data (доступно всем пользователям группы)
-            context.bot_data[search_context_key] = {
-                'last_bot_message_id': result_message.message_id
-            }
+            # context.bot_data[search_context_key] = {
+            #     'last_bot_message_id': result_message.message_id
+            # }
+            set_last_bot_message_id(context, result_message.message_id)
 
         logger.log_user_action(user, "searched for books in group", f"{clean_query_text}; count:{found_books_count}; chat:{chat.title}")
 
@@ -1616,12 +1677,13 @@ async def handle_group_search(update: Update, context: CallbackContext):
 async def handle_group_callback(query, context, action, params, user):
     """Обрабатывает callback-запросы из групп"""
     chat_id = query.message.chat.id
-    search_context_key = f"group_search_{chat_id}"
 
+    # search_context_key = f"group_search_{chat_id}"
     # Восстанавливаем контекст поиска пользователя
-    search_context = context.bot_data.get(search_context_key)
+    # search_context = context.bot_data.get(search_context_key)
+    search_context_user_params = get_user_params(context)
 
-    if not search_context:
+    if not search_context_user_params:
         await query.edit_message_text("❌ Сессия поиска истекла. Начните поиск заново.")
         return
 
@@ -1635,7 +1697,7 @@ async def handle_group_callback(query, context, action, params, user):
 
     # Обрабатываем действия
     if action.startswith('page_'):
-        await handle_group_page_change(query, context, action, params, user, search_context_key)
+        await handle_group_page_change(query, context, action, params, user)
     elif action == 'send_file':
         await handle_send_file(query, context, action, params, user)
     # Прямой поиск обработчика в словаре
@@ -1648,19 +1710,21 @@ async def handle_group_callback(query, context, action, params, user):
     await log_stats(context)
 
 
-async def handle_group_page_change(query, context, action, params, user, search_context_key):
+async def handle_group_page_change(query, context, action, params, user):
     """Обрабатывает смену страницы в группе"""
     chat_id = query.message.chat.id
-    search_context_key = f"group_search_{chat_id}"
 
+    # search_context_key = f"group_search_{chat_id}"
     # Восстанавливаем контекст поиска пользователя
-    search_context = context.bot_data.get(search_context_key)
+    # search_context = context.bot_data.get(search_context_key)
+    search_context_user_params = get_user_params(context)
 
-    if not search_context:
+    if not search_context_user_params:
         await query.edit_message_text("❌ Сессия поиска истекла. Начните поиск заново.")
         return
 
-    pages_of_books = search_context.get(PAGES_OF_BOOKS)
+    # pages_of_books = search_context.get(PAGES_OF_BOOKS)
+    pages_of_books = get_pages_of_books(context)
     page = int(action.removeprefix('page_'))
 
     if not pages_of_books or page >= len(pages_of_books):
@@ -1671,7 +1735,8 @@ async def handle_group_page_change(query, context, action, params, user, search_
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if reply_markup:
-        found_books_count = search_context.get(FOUND_BOOKS_COUNT)
+        # found_books_count = search_context.get(FOUND_BOOKS_COUNT)
+        found_books_count = get_found_books_count(context)
         # user_params = search_context.get(USER_PARAMS)
         user_params = get_user_params(context)
         search_area = user_params.SearchArea
@@ -1843,9 +1908,11 @@ async def handle_back_to_series(query, context, action, params):
     """Возвращает к результатам поиска серий"""
     try:
         # Восстанавливаем последнюю позицию
-        page_num = context.user_data.get('last_series_page', 0)
+        # page_num = context.user_data.get('last_series_page', 0)
+        page_num = get_last_series_page(context)
 
-        pages_of_series = context.user_data.get(PAGES_OF_SERIES)
+        # pages_of_series = context.user_data.get(PAGES_OF_SERIES)
+        pages_of_series = get_pages_of_series(context)
         if not pages_of_series:
             await query.edit_message_text("❌ Не удалось восстановить результаты поиска")
             return
@@ -1854,7 +1921,8 @@ async def handle_back_to_series(query, context, action, params):
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
-            found_series_count = context.user_data.get(FOUND_SERIES_COUNT)
+            # found_series_count = context.user_data.get(FOUND_SERIES_COUNT)
+            found_series_count = get_found_series_count(context)
             # user_params = context.user_data.get(USER_PARAMS)
             user_params = get_user_params(context)
             search_area = user_params.SearchArea
@@ -1876,9 +1944,11 @@ async def handle_back_to_authors(query, context, action, params):
     """Возвращает к результатам поиска авторов"""
     try:
         # Восстанавливаем последнюю позицию
-        page_num = context.user_data.get('last_authors_page', 0)
+        # page_num = context.user_data.get('last_authors_page', 0)
+        page_num = get_last_authors_page(context)
 
-        pages_of_authors = context.user_data.get(PAGES_OF_AUTHORS)
+        # pages_of_authors = context.user_data.get(PAGES_OF_AUTHORS)
+        pages_of_authors = get_pages_of_authors(context)
         if not pages_of_authors:
             await query.edit_message_text("❌ Не удалось восстановить результаты поиска")
             return
@@ -1887,7 +1957,8 @@ async def handle_back_to_authors(query, context, action, params):
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if reply_markup:
-            found_authors_count = context.user_data.get(FOUND_AUTHORS_COUNT)
+            # found_authors_count = context.user_data.get(FOUND_AUTHORS_COUNT)
+            found_authors_count = get_found_authors_count(context)
             # user_params = context.user_data.get(USER_PARAMS)
             user_params = get_user_params(context)
             search_area = user_params.SearchArea
@@ -1974,98 +2045,98 @@ async def send_invoice(context, chat_id, title, description, payload, currency, 
         )
 
 
-# ===== УПРАВЛЕНИЕ КОНТЕКСТОМ =====
-class ContextManager:
-    _instance = None
-    _db_settings:DatabaseSettings = None
-    USER_PARAMS = 'USER_PARAMS'
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._init_db()
-        return cls._instance
-
-    @classmethod
-    def _init_db(cls):
-        if cls._db_settings is None:
-            cls._db_settings = DatabaseSettings()
-        return cls._instance
-
-    @classmethod
-    def get_user_params(cls, context):
-        """Получает настройки пользователя из контекста или БД"""
-        # Ленивая инициализация БД
-        cls._init_db()
-
-        user_id, chat_id = cls._get_ids_from_context(context)
-
-        # 3) Определяем тип чата
-        is_private_chat = (chat_id == user_id)
-
-        # Ищем в соответствующем контексте
-        if is_private_chat and hasattr(context, 'user_data') and cls.USER_PARAMS in context.user_data:
-            return context.user_data[cls.USER_PARAMS]
-        elif not is_private_chat and hasattr(context, 'bot_data'):
-            search_context_key = f"group_search_{chat_id}"
-            if search_context_key in context.bot_data and cls.USER_PARAMS in context.bot_data[search_context_key]:
-                return context.bot_data[search_context_key][cls.USER_PARAMS]
-
-        # Загружаем из БД
-        user_settings = cls._db_settings.get_user_settings(user_id)
-
-        # Сохраняем в соответствующий контекст
-        if is_private_chat and hasattr(context, 'user_data'):
-            context.user_data[cls.USER_PARAMS] = user_settings
-        elif not is_private_chat and hasattr(context, 'bot_data'):
-            search_context_key = f"group_search_{chat_id}"
-            if search_context_key not in context.bot_data:
-                context.bot_data[search_context_key] = {}
-            context.bot_data[search_context_key][cls.USER_PARAMS] = user_settings
-
-        return user_settings
-
-    @classmethod
-    def update_user_params(cls, context, **kwargs):
-        """Обновляет параметр пользователя в БД и контекстах"""
-        # Ленивая инициализация БД
-        cls._init_db()
-
-        user_id, chat_id = cls._get_ids_from_context(context)
-
-        # Обновляем в БД
-        cls._db_settings.update_user_settings(user_id, **kwargs)
-
-        # Определяем контекст для обновления
-        is_private_chat = (chat_id == user_id)
-        local_context = None
-
-        if is_private_chat and hasattr(context, 'user_data') and cls.USER_PARAMS in context.user_data:
-            local_context = context.user_data
-        elif not is_private_chat and hasattr(context, 'bot_data'):
-            search_context_key = f"group_search_{chat_id}"
-            if (search_context_key in context.bot_data and
-                    cls.USER_PARAMS in context.bot_data[search_context_key]):
-                local_context = context.bot_data[search_context_key]
-
-        # Обновляем в контексте
-        if local_context and cls.USER_PARAMS in local_context:
-            current_settings = local_context[cls.USER_PARAMS]._asdict()
-            current_settings.update(kwargs)
-            local_context[cls.USER_PARAMS] = cls._db_settings.UserSettingsType(**current_settings)
-
-    @classmethod
-    def _get_ids_from_context(cls, context):
-        """2) Извлекает user_id и chat_id из контекста"""
-        user_id = getattr(context, '_user_id', None)
-        chat_id = getattr(context, '_chat_id', None)
-        return user_id, chat_id
-
-
-# Функции-обертки
-def get_user_params(context):
-    return ContextManager.get_user_params(context)
-
-
-def update_user_params(context, **kwargs):
-    return ContextManager.update_user_params(context, **kwargs)
+# # ===== УПРАВЛЕНИЕ КОНТЕКСТОМ =====
+# class ContextManager:
+#     _instance = None
+#     _db_settings:DatabaseSettings = None
+#     USER_PARAMS = 'USER_PARAMS'
+#
+#     def __new__(cls):
+#         if cls._instance is None:
+#             cls._instance = super().__new__(cls)
+#             cls._init_db()
+#         return cls._instance
+#
+#     @classmethod
+#     def _init_db(cls):
+#         if cls._db_settings is None:
+#             cls._db_settings = DatabaseSettings()
+#         return cls._instance
+#
+#     @classmethod
+#     def get_user_params(cls, context):
+#         """Получает настройки пользователя из контекста или БД"""
+#         # Ленивая инициализация БД
+#         cls._init_db()
+#
+#         user_id, chat_id = cls._get_ids_from_context(context)
+#
+#         # 3) Определяем тип чата
+#         is_private_chat = (chat_id == user_id)
+#
+#         # Ищем в соответствующем контексте
+#         if is_private_chat and hasattr(context, 'user_data') and cls.USER_PARAMS in context.user_data:
+#             return context.user_data[cls.USER_PARAMS]
+#         elif not is_private_chat and hasattr(context, 'bot_data'):
+#             search_context_key = f"group_search_{chat_id}"
+#             if search_context_key in context.bot_data and cls.USER_PARAMS in context.bot_data[search_context_key]:
+#                 return context.bot_data[search_context_key][cls.USER_PARAMS]
+#
+#         # Загружаем из БД
+#         user_settings = cls._db_settings.get_user_settings(user_id)
+#
+#         # Сохраняем в соответствующий контекст
+#         if is_private_chat and hasattr(context, 'user_data'):
+#             context.user_data[cls.USER_PARAMS] = user_settings
+#         elif not is_private_chat and hasattr(context, 'bot_data'):
+#             search_context_key = f"group_search_{chat_id}"
+#             if search_context_key not in context.bot_data:
+#                 context.bot_data[search_context_key] = {}
+#             context.bot_data[search_context_key][cls.USER_PARAMS] = user_settings
+#
+#         return user_settings
+#
+#     @classmethod
+#     def update_user_params(cls, context, **kwargs):
+#         """Обновляет параметр пользователя в БД и контекстах"""
+#         # Ленивая инициализация БД
+#         cls._init_db()
+#
+#         user_id, chat_id = cls._get_ids_from_context(context)
+#
+#         # Обновляем в БД
+#         cls._db_settings.update_user_settings(user_id, **kwargs)
+#
+#         # Определяем контекст для обновления
+#         is_private_chat = (chat_id == user_id)
+#         local_context = None
+#
+#         if is_private_chat and hasattr(context, 'user_data') and cls.USER_PARAMS in context.user_data:
+#             local_context = context.user_data
+#         elif not is_private_chat and hasattr(context, 'bot_data'):
+#             search_context_key = f"group_search_{chat_id}"
+#             if (search_context_key in context.bot_data and
+#                     cls.USER_PARAMS in context.bot_data[search_context_key]):
+#                 local_context = context.bot_data[search_context_key]
+#
+#         # Обновляем в контексте
+#         if local_context and cls.USER_PARAMS in local_context:
+#             current_settings = local_context[cls.USER_PARAMS]._asdict()
+#             current_settings.update(kwargs)
+#             local_context[cls.USER_PARAMS] = cls._db_settings.UserSettingsType(**current_settings)
+#
+#     @classmethod
+#     def _get_ids_from_context(cls, context):
+#         """2) Извлекает user_id и chat_id из контекста"""
+#         user_id = getattr(context, '_user_id', None)
+#         chat_id = getattr(context, '_chat_id', None)
+#         return user_id, chat_id
+#
+#
+# # Функции-обертки
+# def get_user_params(context):
+#     return ContextManager.get_user_params(context)
+#
+#
+# def update_user_params(context, **kwargs):
+#     return ContextManager.update_user_params(context, **kwargs)
