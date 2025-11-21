@@ -10,10 +10,10 @@ from handlers_info import handle_close_info, handle_book_reviews, handle_book_in
 from handlers_search import handle_authors_page_change, handle_series_page_change, handle_page_change, \
     handle_search_series_books, handle_search_author_books
 from handlers_settings import create_rating_filter_keyboard, show_settings_menu, handle_set_actions, \
-    handle_set_max_books, handle_set_lang_search, handle_set_sort_order, handle_set_size_limit, handle_set_book_format, \
+    handle_set_max_books, handle_set_lang_search, handle_set_size_limit, handle_set_book_format, \
     handle_set_search_type, handle_set_rating_filter, handle_set_search_area
 from handlers_utils import create_authors_keyboard, create_series_keyboard, handle_send_file
-from constants import SETTING_MAX_BOOKS, SETTING_LANG_SEARCH, SETTING_SORT_ORDER, \
+from constants import SETTING_MAX_BOOKS, SETTING_LANG_SEARCH, \
     SETTING_BOOK_FORMAT, SETTING_SEARCH_TYPE, SETTING_OPTIONS, SETTING_TITLES, SETTING_RATING_FILTER, \
     SETTING_SEARCH_AREA, SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS, SETTING_SIZE_LIMIT
 from context import get_pages_of_series, get_found_series_count, get_pages_of_authors, get_found_authors_count, \
@@ -73,7 +73,7 @@ async def handle_private_callback(query, context, action, params):
         'back_to_settings': handle_back_to_settings,
         f'set_{SETTING_MAX_BOOKS}': handle_set_max_books,
         f'set_{SETTING_LANG_SEARCH}': handle_set_lang_search,
-        f'set_{SETTING_SORT_ORDER}': handle_set_sort_order,
+        # f'set_{SETTING_SORT_ORDER}': handle_set_sort_order,
         f'set_{SETTING_SIZE_LIMIT}': handle_set_size_limit,
         f'set_{SETTING_BOOK_FORMAT}': handle_set_book_format,
         f'set_{SETTING_SEARCH_TYPE}': handle_set_search_type,

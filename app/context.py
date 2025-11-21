@@ -2,6 +2,9 @@ from telegram.ext import CallbackContext
 
 from datetime import datetime
 
+# from constants import SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS
+from database import UserSettingsType
+
 
 # Константы для ключей контекста
 class CMConst:
@@ -21,13 +24,13 @@ class CMConst:
 
     # Ключи для поисковых данных
     class CMC_SearchData:
-        BOOKS = 'BOOKS'
+        # BOOKS = 'BOOKS'
         PAGES_OF_BOOKS = 'PAGES_OF_BOOKS'
         FOUND_BOOKS_COUNT = 'FOUND_BOOKS_COUNT'
-        SERIES = 'SERIES'
+        # SERIES = 'SERIES'
         PAGES_OF_SERIES = 'PAGES_OF_SERIES'
         FOUND_SERIES_COUNT = 'FOUND_SERIES_COUNT'
-        AUTHORS = 'AUTHORS'
+        # AUTHORS = 'AUTHORS'
         PAGES_OF_AUTHORS = 'PAGES_OF_AUTHORS'
         FOUND_AUTHORS_COUNT = 'FOUND_AUTHORS_COUNT'
 
@@ -172,7 +175,7 @@ class ContextManager:
             current_dict = current_params._asdict()
             current_dict.update(kwargs)
             data = cls._get_context_data(context)
-            data[CMConst.CMC_UserParams.USER_PARAMS] = cls._db_settings.UserSettingsType(**current_dict)
+            data[CMConst.CMC_UserParams.USER_PARAMS] = UserSettingsType(**current_dict)
 
     @classmethod
     def cleanup_inactive_sessions(cls, app, cleanup_interval):
@@ -281,25 +284,36 @@ def get_found_series_count(context: CallbackContext):
 def get_found_authors_count(context: CallbackContext):
     return ContextManager.get(context, CMConst.CMC_SearchData.FOUND_AUTHORS_COUNT)
 
-def set_books(context: CallbackContext, books, pages, count):
-    ContextManager.set(context, CMConst.CMC_SearchData.BOOKS, books)
-    ContextManager.set(context, CMConst.CMC_SearchData.PAGES_OF_BOOKS, pages)
+def set_books(context: CallbackContext, pages_of_books, count):
+    # ContextManager.set(context, CMConst.CMC_SearchData.BOOKS, books)
+    ContextManager.set(context, CMConst.CMC_SearchData.PAGES_OF_BOOKS, pages_of_books)
     ContextManager.set(context, CMConst.CMC_SearchData.FOUND_BOOKS_COUNT, count)
 
-def set_series(context: CallbackContext, series, pages, count):
-    ContextManager.set(context, CMConst.CMC_SearchData.SERIES, series)
-    ContextManager.set(context, CMConst.CMC_SearchData.PAGES_OF_SERIES, pages)
+def set_series(context: CallbackContext, pages_of_series, count):
+    # ContextManager.set(context, CMConst.CMC_SearchData.SERIES, series)
+    ContextManager.set(context, CMConst.CMC_SearchData.PAGES_OF_SERIES, pages_of_series)
     ContextManager.set(context, CMConst.CMC_SearchData.FOUND_SERIES_COUNT, count)
 
-def set_authors(context: CallbackContext,authors, pages, count):
-    ContextManager.set(context, CMConst.CMC_SearchData.AUTHORS, authors)
-    ContextManager.set(context, CMConst.CMC_SearchData.PAGES_OF_AUTHORS, pages)
+def set_authors(context: CallbackContext, pages_of_authors, count):
+    # ContextManager.set(context, CMConst.CMC_SearchData.AUTHORS, authors)
+    ContextManager.set(context, CMConst.CMC_SearchData.PAGES_OF_AUTHORS, pages_of_authors)
     ContextManager.set(context, CMConst.CMC_SearchData.FOUND_AUTHORS_COUNT, count)
 
+# def set_search_result(context: CallbackContext, pages_of_result, count, search_type: str|None):
+#    """Запись результатов поиска в контекст по их типу"""
+#    if not search_type:
+#        search_type = get_user_params(context).SearchType
+#
+#    if search_type == SEARCH_TYPE_BOOKS:
+#        set_books(context, pages_of_result, count)
+#    elif search_type == SEARCH_TYPE_SERIES:
+#        set_series(context, pages_of_result, count)
+#    elif search_type == SEARCH_TYPE_AUTHORS:
+#        set_authors(context, pages_of_result, count)
 
 
 # Специальные функции для USER_PARAMS
-def get_user_params(context: CallbackContext):
+def get_user_params(context: CallbackContext) -> UserSettingsType:
     """Получает настройки пользователя (с загрузкой из БД при необходимости)"""
     return ContextManager.get(context, CMConst.CMC_UserParams.USER_PARAMS)
 

@@ -4,7 +4,7 @@ from telegram.ext import CallbackContext
 
 from handlers_utils import add_close_button, edit_or_reply_message, create_back_button
 from database import DB_BOOKS
-from constants import  SETTING_MAX_BOOKS, SETTING_LANG_SEARCH, SETTING_SORT_ORDER, SETTING_SIZE_LIMIT, \
+from constants import  SETTING_MAX_BOOKS, SETTING_LANG_SEARCH, SETTING_SIZE_LIMIT, \
     SETTING_BOOK_FORMAT, SETTING_SEARCH_TYPE, SETTING_OPTIONS, SETTING_TITLES, SETTING_RATING_FILTER, BOOK_RATINGS, \
     SETTING_SEARCH_AREA
 from context import get_user_params, update_user_params
@@ -58,16 +58,16 @@ async def handle_set_lang_search(query, context, action, params):
     logger.log_user_action(query.from_user, "showed langs of books setting for user")
 
 
-async def handle_set_sort_order(query, context, action, params):
-    """Показывает настройки сортировки"""
-    user_params = get_user_params(context)
-    current_value = user_params.DateSortOrder
-
-    options = SETTING_OPTIONS[SETTING_SORT_ORDER]
-    reply_markup = create_settings_keyboard(SETTING_SORT_ORDER, current_value, options)
-
-    await edit_or_reply_message(query, SETTING_TITLES[SETTING_SORT_ORDER], reply_markup)
-    logger.log_user_action(query.from_user, "showed sort order setting for user")
+# async def handle_set_sort_order(query, context, action, params):
+#     """Показывает настройки сортировки"""
+#     user_params = get_user_params(context)
+#     current_value = user_params.DateSortOrder
+#
+#     options = SETTING_OPTIONS[SETTING_SORT_ORDER]
+#     reply_markup = create_settings_keyboard(SETTING_SORT_ORDER, current_value, options)
+#
+#     await edit_or_reply_message(query, SETTING_TITLES[SETTING_SORT_ORDER], reply_markup)
+#     logger.log_user_action(query.from_user, "showed sort order setting for user")
 
 
 async def handle_set_size_limit(query, context, action, params):
@@ -136,10 +136,10 @@ async def handle_set_actions(query, context, action, params):
         new_value = action.removeprefix(f'set_{SETTING_LANG_SEARCH}_to_')
         update_user_params(context, Lang=new_value)
 
-    elif action.startswith(f'set_{SETTING_SORT_ORDER}_to_'):
-        setting_type = SETTING_SORT_ORDER
-        new_value = action.removeprefix(f'set_{SETTING_SORT_ORDER}_to_')
-        update_user_params(context, DateSortOrder=new_value)
+    # elif action.startswith(f'set_{SETTING_SORT_ORDER}_to_'):
+    #     setting_type = SETTING_SORT_ORDER
+    #     new_value = action.removeprefix(f'set_{SETTING_SORT_ORDER}_to_')
+    #     update_user_params(context, DateSortOrder=new_value)
 
     elif action.startswith(f'set_{SETTING_SIZE_LIMIT}_to_'):
         setting_type = SETTING_SIZE_LIMIT
@@ -218,13 +218,13 @@ def create_settings_menu(context:CallbackContext):
                 current_value = user_params.Lang
                 current_display = f"({current_value})" if current_value else ""
 
-            elif setting_type == SETTING_SORT_ORDER:
-                # Ищем отображаемое значение в списке настроек
-                current_value = user_params.DateSortOrder
-                for value, display in SETTING_OPTIONS[SETTING_SORT_ORDER]:
-                    if value == current_value:
-                        current_display = f"({display})"
-                        break
+            # elif setting_type == SETTING_SORT_ORDER:
+            #     # Ищем отображаемое значение в списке настроек
+            #     current_value = user_params.DateSortOrder
+            #     for value, display in SETTING_OPTIONS[SETTING_SORT_ORDER]:
+            #         if value == current_value:
+            #             current_display = f"({display})"
+            #             break
 
             elif setting_type == SETTING_SIZE_LIMIT:
                 # Ищем отображаемое значение в списке настроек

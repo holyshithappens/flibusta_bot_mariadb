@@ -33,7 +33,7 @@ CLEANUP_INTERVAL=3600 # каждый час очищаем старые сохр
 # Константы для типов настроек
 SETTING_MAX_BOOKS = 'max_books'
 SETTING_LANG_SEARCH = 'lang_search'
-SETTING_SORT_ORDER = 'sort_order'
+# SETTING_SORT_ORDER = 'sort_order'
 SETTING_SIZE_LIMIT = 'size_limit'
 SETTING_BOOK_FORMAT = 'book_format'
 SETTING_SEARCH_TYPE = 'search_type'
@@ -43,11 +43,14 @@ SETTING_SEARCH_AREA = 'aux_search'
 SETTING_SEARCH_AREA_B = 'b' # Поиск по основной информации
 SETTING_SEARCH_AREA_BA = 'ba' # Поиск по аннотации книг
 
+# SETTING_SORT_ORDER_ASC = 'asc'
+# SETTING_SORT_ORDER_DESC = 'desc'
+
 # Словарь соответствия setting_type -> заголовок
 SETTING_TITLES = {
     SETTING_MAX_BOOKS: 'Ограничение вывода',
     SETTING_LANG_SEARCH: 'Язык книг',
-    SETTING_SORT_ORDER: 'Сортировку по дате публикации',
+    # SETTING_SORT_ORDER: 'Сортировку по дате публикации',
     SETTING_SIZE_LIMIT: 'Ограничение на размер книг',
     SETTING_BOOK_FORMAT: 'Формат скачивания книг',
     SETTING_SEARCH_TYPE: 'Вывод результатов',
@@ -75,10 +78,10 @@ SETTING_OPTIONS = {
         (20, '20'),
         (40, '40')
     ],
-    SETTING_SORT_ORDER: [
-        ('asc', 'по возрастанию'),
-        ('desc', 'по убыванию')
-    ],
+    # SETTING_SORT_ORDER: [
+    #     (SETTING_SORT_ORDER_ASC, 'по возрастанию'),
+    #     (SETTING_SORT_ORDER_DESC, 'по убыванию')
+    # ],
     SETTING_SIZE_LIMIT: [
         ('less800', '<800K'),
         ('more800', '>800K'),

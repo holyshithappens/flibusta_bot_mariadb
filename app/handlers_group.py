@@ -84,10 +84,11 @@ async def handle_group_search(update: Update, context: CallbackContext):
         print(f"DEBUG: clean_query_text = {clean_query_text}")
 
         # Выполняем поиск книг
-        books, found_books_count = DB_BOOKS.search_books(
-            clean_query_text, user_params.Lang, user_params.DateSortOrder, user_params.BookSize, user_params.Rating,
+        books = DB_BOOKS.search_books(
+            clean_query_text, user_params.Lang, user_params.BookSize, user_params.Rating,
             search_area=user_params.SearchArea
         )
+        found_books_count = len(books)
 
         # Удаляем сообщение "Ищу книги..."
         await processing_msg.delete()
@@ -115,7 +116,7 @@ async def handle_group_search(update: Update, context: CallbackContext):
                 )
 
                 # Сохраняем контекст поиска в bot_data (доступно всем пользователям группы)
-                set_books(context, books, pages_of_books, found_books_count)
+                set_books(context, pages_of_books, found_books_count)
                 set_last_search_query(context, clean_query_text)
                 set_last_activity(context, datetime.now())
                 set_last_bot_message_id(context, result_message.message_id)

@@ -1,9 +1,11 @@
+import asyncio
 from datetime import datetime
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackContext
 from telegram.constants import ParseMode
 from telegram.error import Forbidden
+# from telegram._message import Message
 
 from handlers_utils import create_books_keyboard, create_series_keyboard, create_authors_keyboard
 from utils import form_header_books
@@ -76,43 +78,73 @@ async def handle_search_books(update: Update, context: CallbackContext):
         disable_notification=True
     )
 
-    # Извлекаем из контекста или БД настройки пользователя
-    user_params =  get_user_params(context)
-
-    books, found_books_count = DB_BOOKS.search_books(
-        query_text, user_params.Lang, user_params.DateSortOrder, user_params.BookSize, user_params.Rating,
-        search_area=user_params.SearchArea
+    # Запускаем асинхронный поиск
+    asyncio.create_task(
+        async_search_books(context, query_text, processing_msg, user)
     )
 
+
+async def async_search_books(context: CallbackContext, query_text: str, processing_msg, user):
+    """Асинхронная задача поиска книг"""
+    try:
+        # Извлекаем из контекста или БД настройки пользователя
+        user_params =  get_user_params(context)
+
+        books = await asyncio.get_event_loop().run_in_executor(
+                None,  # Используем стандартный ThreadPoolExecutor
+                lambda: DB_BOOKS.search_books(
+                    query_text, user_params.Lang, user_params.BookSize, user_params.Rating,
+                    search_area=user_params.SearchArea
+                )
+        )
+        found_books_count = len(books)
+
+        # Обрабатываем результаты
+        await process_search_books(context, books, found_books_count, processing_msg, query_text, user)
+
+    except Exception as e:
+        # Обработка ошибок
+        await processing_msg.edit_text(f"❌ Ошибка при поиске: {str(e)}")
+
+
+async def process_search_books(context: CallbackContext, books, found_books_count: int, processing_msg, query_text: str, user):
+    """Обработка и отображение результатов поиска"""
     # Проверяем, найдены ли книги
     if books or found_books_count > 0:
-        pages_of_books = [books[i:i + user_params.MaxBooks] for i in range(0, len(books), user_params.MaxBooks)]
-
-        await processing_msg.delete()
-
+        # Извлекаем из контекста или БД настройки пользователя
+        user_params =  get_user_params(context)
+        # await processing_msg.delete()
+        pages_of_result = [books[i:i + user_params.MaxBooks] for i in range(0, len(books), user_params.MaxBooks)]
         page = 0
-        keyboard = create_books_keyboard(page, pages_of_books)
+
+        search_type = user_params.SearchType
+        keyboard = create_books_keyboard(page, pages_of_result)
         reply_markup = InlineKeyboardMarkup(keyboard)
+
         if reply_markup:
             header_found_text = form_header_books(
                 page, user_params.MaxBooks, found_books_count,
+                search_type=search_type,
                 search_area=user_params.SearchArea
             )
-            result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
+            # result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
+            # Заменяем сообщение об ожидании на результаты
+            await processing_msg.edit_text(header_found_text, reply_markup=reply_markup)
 
-        set_books(context, books, pages_of_books, found_books_count)
-        set_last_activity(context, datetime.now()) # Сохраняем время поиска
+            set_books(context, pages_of_result, found_books_count)
+            # set_search_result(context, pages_of_result, found_books_count, search_type)
+            set_last_activity(context, datetime.now()) # Сохраняем время поиска
+            # СОХРАНЯЕМ ID СООБЩЕНИЯ С РЕЗУЛЬТАТАМИ И ЗАПРОС
+            set_last_bot_message_id(context, processing_msg.message_id)
+            set_last_search_query(context, query_text)
     else:
-        search_annotation_text = "ВКЛЮЧЕН" if user_params.SearchArea == SETTING_SEARCH_AREA_BA else "ВЫКЛЮЧЕН"
-        result_message = await message.reply_text(
-            "😞 Не нашёл подходящих книг. Попробуйте другие критерии поиска." 
-            f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
+        # search_annotation_text = "ВКЛЮЧЕН" if user_params.SearchArea == SETTING_SEARCH_AREA_BA else "ВЫКЛЮЧЕН"
+        # result_message = await message.reply_text(
+        await processing_msg.edit_text(
+            "😞 Не нашёл подходящих книг. Попробуйте другие критерии поиска.",
+            # f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
             parse_mode=ParseMode.HTML
         )
-
-    # СОХРАНЯЕМ ID СООБЩЕНИЯ С РЕЗУЛЬТАТАМИ И ЗАПРОС
-    set_last_bot_message_id(context, result_message.message_id)
-    set_last_search_query(context, query_text)
 
     logger.log_user_action(user, "searched for books", f"{query_text}; count:{found_books_count}")
 
@@ -146,10 +178,11 @@ async def handle_search_series(update: Update, context: CallbackContext):
     # Извлекаем настройки пользователя из контекста или БД
     user_params = get_user_params(context)
     # Ищем серии
-    series, found_series_count = DB_BOOKS.search_series(
+    series = DB_BOOKS.search_series(
         query_text, user_params.Lang, user_params.BookSize, user_params.Rating,
         search_area=user_params.SearchArea
     )
+    found_series_count = len(series)
 
     if series or found_series_count > 0:
         pages_of_series = [series[i:i + user_params.MaxBooks] for i in range(0, len(series), user_params.MaxBooks)]
@@ -167,7 +200,7 @@ async def handle_search_series(update: Update, context: CallbackContext):
             )
             result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
 
-        set_series(context, series, pages_of_series, found_series_count)
+        set_series(context, pages_of_series, found_series_count)
         set_last_series_page(context, page)  # Сохраняем текущую страницу
         set_last_activity(context, datetime.now())  # Сохраняем время поиска
     else:
@@ -193,15 +226,16 @@ async def handle_search_series_books(query, context, action, params):
 
         # print(f"DEBUG: query_text = {query_text}")
 
-        books, found_books_count = DB_BOOKS.search_books(
-            query_text, user_params.Lang, user_params.DateSortOrder, user_params.BookSize, user_params.Rating,
-            series_id =series_id, #Добавляем ограничение по выбранной серии
-            search_area=user_params.SearchArea
+        books = DB_BOOKS.search_books(
+            query_text, user_params.Lang, user_params.BookSize, user_params.Rating,
+            search_area=user_params.SearchArea,
+            series_id = series_id  # Добавляем ограничение по выбранной серии
         )
+        found_books_count = len(books)
 
         if books:
             pages_of_books = [books[i:i + user_params.MaxBooks] for i in range(0, len(books), user_params.MaxBooks)]
-            set_books(context, books, pages_of_books, found_books_count)
+            set_books(context, pages_of_books, found_books_count)
             set_last_activity(context, datetime.now())  # Сохраняем время поиска
             # Извлекаем имя серии из данных первой книги
             series_name = books[0].SeriesTitle
@@ -256,10 +290,11 @@ async def handle_search_authors(update: Update, context: CallbackContext):
     user_params = get_user_params(context)
 
     # Ищем авторов
-    authors, found_authors_count = DB_BOOKS.search_authors(
+    authors  = DB_BOOKS.search_authors(
         query_text, user_params.Lang, user_params.BookSize, user_params.Rating,
         search_area=user_params.SearchArea
     )
+    found_authors_count = len(authors)
 
     if authors or found_authors_count > 0:
         pages_of_authors = [authors[i:i + user_params.MaxBooks] for i in range(0, len(authors), user_params.MaxBooks)]
@@ -277,7 +312,7 @@ async def handle_search_authors(update: Update, context: CallbackContext):
             )
             result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
 
-        set_authors(context, authors, pages_of_authors, found_authors_count)
+        set_authors(context, pages_of_authors, found_authors_count)
         set_last_authors_page(context, page)  # Сохраняем текущую страницу
         set_last_activity(context, datetime.now())  # Сохраняем время поиска
     else:
@@ -302,15 +337,16 @@ async def handle_search_author_books(query, context, action, params):
         # Ищем книги автора в комбинации с предыдущим запросом
         query_text = get_last_search_query(context)
 
-        books, found_books_count = DB_BOOKS.search_books(
-            query_text, user_params.Lang, user_params.DateSortOrder, user_params.BookSize, user_params.Rating,
-            author_id = author_id, # Добавляем ограничение по автору для поиска книг выбранного автора
-            search_area=user_params.SearchArea
+        books = DB_BOOKS.search_books(
+            query_text, user_params.Lang, user_params.BookSize, user_params.Rating,
+            search_area=user_params.SearchArea,
+            author_id = author_id  # Добавляем ограничение по автору для поиска книг выбранного автора
         )
+        found_books_count = len(books)
 
         if books:
             pages_of_books = [books[i:i + user_params.MaxBooks] for i in range(0, len(books), user_params.MaxBooks)]
-            set_books(context, books, pages_of_books, found_books_count)
+            set_books(context, pages_of_books, found_books_count)
             set_last_activity(context, datetime.now())
             set_current_author_id(context, author_id)
 

@@ -1,16 +1,25 @@
 import os
 import sqlite3
 from collections import namedtuple
-from typing import Dict, List
+from datetime import date, datetime, timedelta, time
+from decimal import Decimal
+from typing import Dict, List, Any, Coroutine
 
 import mysql.connector
 from contextlib import contextmanager
 
+# from constants import SETTING_SORT_ORDER_DESC
 from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, FLIBUSTA_BASE_URL, MAX_BOOKS_SEARCH, \
     SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA
 from utils import get_cover_url
 
-Book = namedtuple('Book', ['FileName', 'Title', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'BookSize', 'SearchYear', 'LibRate', 'SeriesTitle', 'Relevance'])
+Book = namedtuple('Book',
+                  ['FileName', 'Title', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'BookSize',
+                   'SearchYear', 'LibRate', 'SeriesTitle', 'Relevance'])
+UserSettingsType = namedtuple('UserSettingsType',
+                              ['User_ID', 'MaxBooks', 'Lang',
+                               # 'DateSortOrder',
+                               'BookFormat', 'LastNewsDate', 'IsBlocked', 'BookSize', 'SearchType', 'Rating', 'SearchArea'])
 
 # SQL-запросы
 # Базовые поля для SELECT
@@ -526,9 +535,9 @@ class DatabaseLogs(Database):
 
 # Класс для работы с БД настроек бота
 class DatabaseSettings(Database):
-    UserSettingsType = namedtuple('UserSettingsType',
-                              ['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate',
-                               'IsBlocked', 'BookSize', 'SearchType', 'Rating', 'SearchArea'])
+    # UserSettingsType = namedtuple('UserSettingsType',
+    #                           ['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate',
+    #                            'IsBlocked', 'BookSize', 'SearchType', 'Rating', 'SearchArea'])
 
     def __init__(self, db_path = FLIBUSTA_DB_SETTINGS_PATH):
         super().__init__(db_path)
@@ -568,7 +577,7 @@ class DatabaseSettings(Database):
         """
         Получает настройки пользователя из базы данных.
         """
-        fields = self.UserSettingsType._fields
+        fields = UserSettingsType._fields
         processed_fields = [field for field in fields]
         select_fields = ', '.join(processed_fields)
 
@@ -582,7 +591,7 @@ class DatabaseSettings(Database):
                 conn.commit()
                 cursor.execute(f"SELECT {select_fields} FROM UserSettings WHERE user_id = ?", (user_id,))
                 settings = cursor.fetchone()
-        return self.UserSettingsType(*settings)
+        return UserSettingsType(*settings)
 
     def update_user_settings(self, user_id, **kwargs):
         """
@@ -731,12 +740,12 @@ class DatabaseBooks():
         return DatabaseBooks._class_cached_langs
 
 
-    def search_books(self, query, lang, sort_order, size_limit, rating_filter=None, series_id=0, author_id=0, search_area=SETTING_SEARCH_AREA_B):
+    def search_books(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B, series_id=0, author_id=0):
         """Ищем книги по запросу пользователя"""
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter, series_id, author_id)
         # Строим запросы для поиска книг и подсчёта количества найденных книг
         # sql_query, sql_query_cnt = self.build_sql_queries_ft(sql_where, sort_order, search_area)
-        sql_query = self.build_sql_queries_ft(sql_where, sort_order, search_area)
+        sql_query = self.build_sql_queries_ft(sql_where, 'desc', search_area)
 
         params = []
         # Пара одинаковых параметров в виде полного запроса для FullText поиска
@@ -754,9 +763,9 @@ class DatabaseBooks():
             books = [Book(*row) for row in cursor.fetchall()]
             # cursor.execute(sql_query_cnt, params)
             # count = cursor.fetchone()[0]
-            count = len(books)
+            # count = len(books)
 
-        return books, count
+        return books
 
 
     async def get_book_info(self, book_id):
@@ -827,7 +836,7 @@ class DatabaseBooks():
             } if annotation_result else None
 
 
-    def search_series(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B):
+    def search_series(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B, sort_order=None, series_id=0, author_id=0):
         """Ищет серии по запросу"""
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
 
@@ -861,12 +870,12 @@ class DatabaseBooks():
             series = cursor.fetchall()
             # cursor.execute(sql_query_cnt, params)
             # count = cursor.fetchone()[0]
-            count = len(series)
+            # count = len(series)
 
-        return series, count
+        return series
 
 
-    async def get_authors_id(self, book_id: int) -> List:
+    async def get_authors_id(self, book_id: int) -> list[ int | None | Any] | None:
         """Получает ID авторов книги"""
         with self.connect() as conn:
             cursor = conn.cursor(buffered=True)
@@ -885,7 +894,7 @@ class DatabaseBooks():
                 return [author_id[0] for author_id in author_result]
 
 
-    async def get_author_info(self, author_id: int) -> Dict:
+    async def get_author_info(self, author_id: int) -> dict[str, str | None | Any] | None:
         """Получает информацию об авторе книги"""
         with self.connect() as conn:
             cursor = conn.cursor(buffered=True)
@@ -934,7 +943,7 @@ class DatabaseBooks():
             return cursor.fetchall()
 
 
-    def search_authors(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B):
+    def search_authors(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B, sort_order=None, series_id=0, author_id=0):
         """Ищет авторов по запросу"""
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
 
@@ -963,9 +972,9 @@ class DatabaseBooks():
             authors = cursor.fetchall()
             # cursor.execute(sql_query_cnt, params)
             # count = cursor.fetchone()[0]
-            count = len(authors)
+            # count = len(authors)
 
-        return authors, count
+        return authors
 
 
     @staticmethod

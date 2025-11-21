@@ -50,7 +50,7 @@ async def set_commands(application: Application):
         BotCommand("about", "Инфа о боте и библиотеке"),
         BotCommand("help", "Помощь по запросам"),
         BotCommand("genres", "Список жанров"),
-        BotCommand("langs", "Доступные языки"),
+        # BotCommand("langs", "Доступные языки"),
         BotCommand("set", "Настройки поиска"),
         BotCommand("donate", "Поддержать разработчика")
     ]
@@ -115,7 +115,7 @@ def main():
     application.add_handler(CommandHandler("about", about_cmd))
     application.add_handler(CommandHandler("help", help_cmd))
     application.add_handler(CommandHandler("genres", genres_cmd))
-    application.add_handler(CommandHandler("langs", langs_cmd))
+    # application.add_handler(CommandHandler("langs", langs_cmd))
     application.add_handler(CommandHandler("set", settings_cmd))
     application.add_handler(CommandHandler("donate", donate_cmd))
     # Обработчик ДЛЯ ГРУПП (только группы + сообщения для бота)
