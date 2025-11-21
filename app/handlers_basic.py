@@ -71,19 +71,19 @@ async def genres_cmd(update: Update, context: CallbackContext):
     logger.log_user_action(user, "viewed parent genres")
 
 
-async def langs_cmd(update: Update, context: CallbackContext):
-    """Показывает доступные языки"""
-    results = DB_BOOKS.get_langs()
-    langs = ", ".join([f"<code>{lang[0].strip()}</code>" for lang in results])
-    await update.message.reply_text(
-        langs,
-        parse_mode=ParseMode.HTML,
-        disable_notification=True
-    )
-
-    await log_stats(context)
-    user = update.message.from_user
-    logger.log_user_action(user, "viewed langs of books")
+# async def langs_cmd(update: Update, context: CallbackContext):
+#     """Показывает доступные языки"""
+#     results = DB_BOOKS.get_langs()
+#     langs = ", ".join([f"<code>{lang[0].strip()}</code>" for lang in results])
+#     await update.message.reply_text(
+#         langs,
+#         parse_mode=ParseMode.HTML,
+#         disable_notification=True
+#     )
+#
+#     await log_stats(context)
+#     user = update.message.from_user
+#     logger.log_user_action(user, "viewed langs of books")
 
 
 async def settings_cmd(update: Update, context: CallbackContext):
