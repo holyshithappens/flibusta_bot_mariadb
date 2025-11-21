@@ -735,7 +735,8 @@ class DatabaseBooks():
         """Ищем книги по запросу пользователя"""
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter, series_id, author_id)
         # Строим запросы для поиска книг и подсчёта количества найденных книг
-        sql_query, sql_query_cnt = self.build_sql_queries_ft(sql_where, sort_order, search_area)
+        # sql_query, sql_query_cnt = self.build_sql_queries_ft(sql_where, sort_order, search_area)
+        sql_query = self.build_sql_queries_ft(sql_where, sort_order, search_area)
 
         params = []
         # Пара одинаковых параметров в виде полного запроса для FullText поиска
@@ -751,8 +752,9 @@ class DatabaseBooks():
             cursor = conn.cursor(buffered=True)
             cursor.execute(sql_query, params)
             books = [Book(*row) for row in cursor.fetchall()]
-            cursor.execute(sql_query_cnt, params)
-            count = cursor.fetchone()[0]
+            # cursor.execute(sql_query_cnt, params)
+            # count = cursor.fetchone()[0]
+            count = len(books)
 
         return books, count
 
@@ -847,7 +849,7 @@ class DatabaseBooks():
         LIMIT {MAX_BOOKS_SEARCH}
         """
 
-        sql_query_cnt = f"SELECT COUNT(*) FROM ({sql_query}) as subquery2"
+        # sql_query_cnt = f"SELECT COUNT(*) FROM ({sql_query}) as subquery2"
 
         # #DEBUG
         # print(f"DEBUG: sql_query = {sql_query}")
@@ -857,8 +859,9 @@ class DatabaseBooks():
             cursor = conn.cursor(buffered=True)
             cursor.execute(sql_query, params)
             series = cursor.fetchall()
-            cursor.execute(sql_query_cnt, params)
-            count = cursor.fetchone()[0]
+            # cursor.execute(sql_query_cnt, params)
+            # count = cursor.fetchone()[0]
+            count = len(series)
 
         return series, count
 
@@ -952,14 +955,15 @@ class DatabaseBooks():
         LIMIT {MAX_BOOKS_SEARCH}
         """
 
-        sql_query_cnt = f"SELECT COUNT(*) FROM ({sql_query}) as subquery2"
+        # sql_query_cnt = f"SELECT COUNT(*) FROM ({sql_query}) as subquery2"
 
         with self.connect() as conn:
             cursor = conn.cursor(buffered=True)
             cursor.execute(sql_query, params)
             authors = cursor.fetchall()
-            cursor.execute(sql_query_cnt, params)
-            count = cursor.fetchone()[0]
+            # cursor.execute(sql_query_cnt, params)
+            # count = cursor.fetchone()[0]
+            count = len(authors)
 
         return authors, count
 
@@ -1021,12 +1025,12 @@ class DatabaseBooks():
             LIMIT {MAX_BOOKS_SEARCH}
         """
 
-        # SELECT COUNT(*) FROM(SELECT {select_fields} {from_clause} GROUP BY {fields[0]}) as subquery2
-        sql_query_cnt = f"""
-            SELECT COUNT(*) FROM ({sql_query}) as subquery2
-        """
+        # """ f"SELECT COUNT(*) FROM(SELECT {select_fields} {from_clause} GROUP BY {fields[0]}) as subquery2" """
+        # sql_query_cnt = f"""
+        #     SELECT COUNT(*) FROM ({sql_query}) as subquery2
+        # """
 
-        return sql_query, sql_query_cnt
+        return sql_query #, sql_query_cnt
 
 DB_BOOKS = DatabaseBooks({
     'host': os.getenv('DB_HOST'),
