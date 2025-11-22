@@ -930,7 +930,8 @@ class DatabaseBooks():
                 'name': f"{author_result[1]} {author_result[2]} {author_result[3]}",
                 'photo_url': photo_url,
                 'title': annotation_result[0],
-                'biography': annotation_result[1]
+                'biography': annotation_result[1],
+                'author_id': author_result[0]
             } if annotation_result else None
 
 

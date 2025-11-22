@@ -262,7 +262,7 @@ def format_book_details(book_details):
 
 def format_author_info(author_info):
     """Форматирует информацию об авторе"""
-    text = f"👤 <b>Об авторе:</b> {author_info['name']}\n\n"
+    text = f"👤 <b>Об авторе:</b> <a href='{FlibustaClient.get_author_url(author_info['author_id'])}'>{author_info['name']}</a>\n\n"
     if author_info.get('biography'):
         clean_bio = clean_html_tags(author_info['biography'])
         # text += f"{clean_bio[:4000]}" + ("..." if len(clean_bio) > 4000 else "")
@@ -282,7 +282,7 @@ def format_book_reviews(reviews):
         if len(text + reviewer + clean_review_trunc) > 4000:
             break
         text += reviewer
-        text += clean_review
+        text += clean_review_trunc
 
     return text
 

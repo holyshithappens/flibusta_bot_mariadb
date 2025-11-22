@@ -12,6 +12,12 @@ async def handle_book_info(query, context, action, params):
         file_name = params[0]
         book_id = int(file_name)
 
+        processing_msg = await query.message.reply_text(
+            "⏰ <i>Ожидайте, загружаю информацию о книге...</i>",
+            parse_mode=ParseMode.HTML,
+            disable_notification=True
+        )
+
         # Получаем информацию о книге из БД
         book_info = await DB_BOOKS.get_book_info(book_id)
 
@@ -53,6 +59,9 @@ async def handle_book_info(query, context, action, params):
         ]
 
         reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await processing_msg.delete()
+
         await info_message.edit_reply_markup(reply_markup)
 
 
@@ -142,7 +151,7 @@ async def handle_book_reviews(query, context, action, params):
         book_id = params[0]
         reviews = await DB_BOOKS.get_book_reviews(book_id)
 
-        if not reviews:
+        if reviews is None:
             await query.message.reply_text("📝 Отзывов пока нет")
             return
 
