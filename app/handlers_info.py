@@ -151,15 +151,21 @@ async def handle_book_reviews(query, context, action, params):
         book_id = params[0]
         reviews = await DB_BOOKS.get_book_reviews(book_id)
 
-        if reviews is None:
-            await query.message.reply_text("📝 Отзывов пока нет")
-            return
+        # if not reviews:
+        #     await query.message.reply_text("📝 Отзывов пока нет")
+        #     return
 
-        message_text = format_book_reviews(reviews)
-        info_message = await query.message.reply_text(
-            message_text,
-            parse_mode=ParseMode.HTML
-        )
+        if reviews:
+            message_text = format_book_reviews(reviews)
+            info_message = await query.message.reply_text(
+                message_text,
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            info_message = await query.message.reply_text(
+                "📝 Отзывов пока нет",
+                parse_mode=ParseMode.HTML
+            )
 
         # Добавляем кнопку закрытия с ID сообщения
         keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")]]

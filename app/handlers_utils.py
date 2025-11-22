@@ -43,8 +43,8 @@ async def process_book_download(query, book_id, book_format, for_user=None):
 
         # Если не удалось — вторая попытка с авторизацией
         if not book_data:
-            new_msg = "⏰ <i>Требуется больше времени на скачивание" + (f" для {for_user.first_name}" if for_user else "") + "...</i>"
-            await processing_msg.edit_text(new_msg, parse_mode=ParseMode.HTML)
+            # new_msg = "⏰ <i>Требуется больше времени на скачивание" + (f" для {for_user.first_name}" if for_user else "") + "...</i>"
+            # await processing_msg.edit_text(new_msg, parse_mode=ParseMode.HTML)
             book_data, original_filename = await flibusta_client.download_book(book_id, book_format, auth=True)
             public_filename = original_filename if original_filename else f"{book_id}.{book_format}"
 
