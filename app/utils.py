@@ -5,10 +5,11 @@ from urllib.parse import unquote
 import aiohttp
 from bs4 import BeautifulSoup
 import importlib.util
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import html
 
-from constants import  FLIBUSTA_BASE_URL, SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA
+from flibusta_client import FlibustaClient
+from constants import  SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA #FLIBUSTA_BASE_URL
 
 # Пространство имен FB2
 FB2_NAMESPACE = "http://www.gribuser.ru/xml/fictionbook/2.0"
@@ -74,27 +75,27 @@ def get_platform_recommendations() -> str:
 
 # ===== СЛУЖЕБНЫЕ ФУНКЦИИ =====
 
-async def download_book_with_filename(url: str):
-    """Скачивает книгу и возвращает данные + оригинальное имя файла"""
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    book_data = await response.read()
-                    filename = None
-
-                    content_disposition = response.headers.get('Content-Disposition', '')
-                    if content_disposition:
-                        filename_match = re.search(r'filename[^;=\n]*=([\'"]?)([^\'"\n]+)\1', content_disposition,
-                                                   re.IGNORECASE)
-                        if filename_match:
-                            filename = unquote(filename_match.group(2))
-
-                    return book_data, filename
-                return None, None
-    except Exception as e:
-        print(f"Ошибка скачивания книги: {e}")
-        return None, None
+# async def download_book_with_filename(url: str):
+#     """Скачивает книгу и возвращает данные + оригинальное имя файла"""
+#     try:
+#         async with aiohttp.ClientSession() as session:
+#             async with session.get(url) as response:
+#                 if response.status == 200:
+#                     book_data = await response.read()
+#                     filename = None
+#
+#                     content_disposition = response.headers.get('Content-Disposition', '')
+#                     if content_disposition:
+#                         filename_match = re.search(r'filename[^;=\n]*=([\'"]?)([^\'"\n]+)\1', content_disposition,
+#                                                    re.IGNORECASE)
+#                         if filename_match:
+#                             filename = unquote(filename_match.group(2))
+#
+#                     return book_data, filename
+#                 return None, None
+#     except Exception as e:
+#         print(f"Ошибка скачивания книги: {e}")
+#         return None, None
 
 
 async def upload_to_tmpfiles(file, file_name: str) -> str:
@@ -174,25 +175,66 @@ async def get_latest_news(file_path: str, count: int = 3) -> List[Dict[str, Any]
 
 
 # ===== ФОРМАТИРОВАНИЕ ВЫВОДА =====
+def truncate_text(text, no_more_len, stop_sep) -> str:
+    if len(text) <= no_more_len:
+        return text
+    else:
+        # Обрезаем до no_more_len символов и ищем последний stop символ
+        truncated = text[:no_more_len]
+        last_stop_char = truncated.rfind(stop_sep)
+        if last_stop_char != -1:
+            return truncated[:last_stop_char] + "..."
+        else:
+            # Если запятых нет — значит, один очень длинный текст
+             return truncated + "..."
+
+
+def format_links_from_flat_string(url_routine, flat_str: str, max_num_elem: int) -> Tuple[str, bool]:
+    if not flat_str:
+        return "", False
+
+    parts = [part.strip() for part in flat_str.split(',') if part.strip()]
+    orig_len = len(parts)
+    parts = parts[:max_num_elem]
+    trunc_len = len(parts)
+
+    # Если нечётное количество — отбрасываем последний непарный элемент
+    if len(parts) % 2 != 0:
+        parts = parts[:-1]
+
+    links = []
+    for i in range(0, len(parts), 2):
+        try:
+            elem_id = int(parts[i])
+            elem_name = parts[i + 1]
+            url = url_routine(elem_id)
+            links.append(f"<a href='{url}'>{elem_name}</a>")
+        except (ValueError, IndexError):
+            # Пропускаем некорректные пары
+            continue
+
+    return ", ".join(links), orig_len != trunc_len
 
 def format_book_info(book_info):
     """Форматирует информацию о книге для сообщения"""
-    text = f"📚 <b>{book_info['title']}</b>\n"
-    authors = book_info['authors'][:300] + ("..." if len(book_info['authors']) > 300 else "")
-    text += f"\n👤 <b>Автор(ы):</b> {authors or 'Не указаны'}"
+    text = f"📚 <b><a href='{FlibustaClient.get_book_url(book_info['bookid'])}'>{book_info['title']}</a></b>\n"
+    # authors = book_info['authors'][:300] + ("..." if len(book_info['authors']) > 300 else "")
+    author_links, is_truncated = format_links_from_flat_string(FlibustaClient.get_author_url, book_info['authors'], 20)
+    text += f"\n👤 <b>Автор(ы):</b> {(author_links + (',...' if is_truncated else '')) or 'Не указаны'}"
     year = book_info['year']
     series = book_info['series']
-    genre = book_info['genre']
+    genre_links, is_truncated = format_links_from_flat_string(FlibustaClient.get_genre_url, book_info['genres'], 10)
     lang = book_info['lang']
     pages = book_info['pages']
     rate = book_info['rate']
-    bookid = book_info['bookid']
+    # book_id = book_info['bookid']
+    series_id = book_info['seqid']
     if year and year != 0:
         text += f"\n📅 <b>Год:</b> {year}"
     if series:
-        text += f"\n📖 <b>Серия:</b> {series}"
-    if genre:
-        text += f"\n📑 <b>Жанр(ы):</b> {genre}"
+        text += f"\n📖 <b>Серия:</b> <a href='{FlibustaClient.get_series_url(series_id)}'>{series}</a>"
+    if genre_links:
+        text += f"\n📑 <b>Жанр(ы):</b> {(genre_links + (',...' if is_truncated else '')) or 'Не указаны'}"
     if lang:
         text += f"\n🗣️ <b>Язык:</b> {lang}"
     if pages:
@@ -201,8 +243,8 @@ def format_book_info(book_info):
     text += f"\n📦 <b>Размер:</b> {size}"
     if rate:
         text += f"\n⭐ <b>Рейтинг:</b> {rate:.1f}"
-    if bookid:
-        text += f"\n🔑 <b>ID:</b> <a href='{FLIBUSTA_BASE_URL}/b/{bookid}'>{bookid}</a>"
+    # if book_id:
+    #     text += f"\n🔑 <b>ID:</b> <a href='{FlibustaClient.get_book_url(book_id)}'>{book_id}</a>"
     return text
 
 
@@ -212,9 +254,10 @@ def format_book_details(book_details):
     if book_details.get('annotation'):
         # Очищаем HTML теги для телеграма
         clean_annotation = clean_html_tags(book_details['annotation'])
-        text += f"{clean_annotation[:4000]}" + ("..." if len(clean_annotation) > 4000 else "")
+        # text += f"{clean_annotation[:4000]}" + ("..." if len(clean_annotation) > 4000 else "")
+        text += clean_annotation
 
-    return text
+    return truncate_text(text, 4000, '.')
 
 
 def format_author_info(author_info):
@@ -222,21 +265,26 @@ def format_author_info(author_info):
     text = f"👤 <b>Об авторе:</b> {author_info['name']}\n\n"
     if author_info.get('biography'):
         clean_bio = clean_html_tags(author_info['biography'])
-        text += f"{clean_bio[:4000]}" + ("..." if len(clean_bio) > 4000 else "")
+        # text += f"{clean_bio[:4000]}" + ("..." if len(clean_bio) > 4000 else "")
+        text += clean_bio
 
-    return text
+    return truncate_text(text, 4000, '.')
 
 
 def format_book_reviews(reviews):
     """Форматирует отзывы о книге"""
     text = "💬 <b>Отзывы о книге:</b>\n\n"
 
-    for name, time, review_text in reviews[:30]:
-        text += f"👤 <b>{name}</b> ({time})\n"
+    for name, time, review_text in reviews[:50]:
+        reviewer = f"👤 <b>{name}</b> ({time})\n"
         clean_review = clean_html_tags(review_text)
-        text += f"{clean_review[:1000]}" + ("..." if len(clean_review) > 1000 else "") + "\n"
+        clean_review_trunc = f"{clean_review[:1000]}" + ("..." if len(clean_review) > 1000 else "") + "\n"
+        if len(text + reviewer + clean_review_trunc) > 4000:
+            break
+        text += reviewer
+        text += clean_review
 
-    return text[:4000]
+    return text
 
 def clean_html_tags(text):
     """Удаляем html-теги и очищаем от лишнего мусора"""
@@ -251,27 +299,27 @@ def clean_html_tags(text):
     clean_text = clean_text.strip()
     return clean_text
 
-async def get_cover_url(book_id: str):
-    """Простой поиск обложки через BeautifulSoup"""
-    try:
-        url = f"{FLIBUSTA_BASE_URL}/b/{book_id}"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    html_resp = await response.text()
-                    # print(f"DEBUG: html_resp = {html_resp}")
-                    soup = BeautifulSoup(html_resp, 'html.parser')
-                    # Ищем обложку по title или alt
-                    cover_img = soup.find('img', {'title': 'Cover image'})
-                    if not cover_img:
-                        cover_img = soup.find('img', {'alt': 'Cover image'})
-
-                    if cover_img and cover_img.get('src'):
-                        cover_url = cover_img['src']
-                        if not cover_url.startswith('http'):
-                            cover_url = f"{FLIBUSTA_BASE_URL}{cover_url}"
-                        return cover_url
-        return None
-    except Exception as e:
-        print(f"Ошибка получения обложки: {e}")
-        return None
+# async def get_cover_url(book_id: str):
+#     """Простой поиск обложки через BeautifulSoup"""
+#     try:
+#         url = f"{FLIBUSTA_BASE_URL}/b/{book_id}"
+#         async with aiohttp.ClientSession() as session:
+#             async with session.get(url) as response:
+#                 if response.status == 200:
+#                     html_resp = await response.text()
+#                     # print(f"DEBUG: html_resp = {html_resp}")
+#                     soup = BeautifulSoup(html_resp, 'html.parser')
+#                     # Ищем обложку по title или alt
+#                     cover_img = soup.find('img', {'title': 'Cover image'})
+#                     if not cover_img:
+#                         cover_img = soup.find('img', {'alt': 'Cover image'})
+#
+#                     if cover_img and cover_img.get('src'):
+#                         cover_url = cover_img['src']
+#                         if not cover_url.startswith('http'):
+#                             cover_url = f"{FLIBUSTA_BASE_URL}{cover_url}"
+#                         return cover_url
+#         return None
+#     except Exception as e:
+#         print(f"Ошибка получения обложки: {e}")
+#         return None

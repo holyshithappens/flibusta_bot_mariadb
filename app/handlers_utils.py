@@ -3,38 +3,50 @@ from telegram.constants import ParseMode
 from telegram.error import TimedOut
 
 from context import get_user_params
-from constants import FLIBUSTA_BASE_URL, BOOK_RATINGS, SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS, \
-    DEFAULT_BOOK_FORMAT
-from utils import format_size, download_book_with_filename, upload_to_tmpfiles
+from constants import  BOOK_RATINGS, SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS, \
+    DEFAULT_BOOK_FORMAT #,FLIBUSTA_BASE_URL
+from utils import format_size, upload_to_tmpfiles
 from logger import logger
+from flibusta_client import flibusta_client, FlibustaClient
 
 # ===== УТИЛИТЫ И ХЕЛПЕРЫ =====
 async def handle_send_file(query, context, action, params, for_user = None):
     """Обрабатывает отправку файла"""
-    file_name = params[0]
-    book_id = file_name
+    book_id = params[0]
     user_params = get_user_params(context)
     book_format = user_params.BookFormat if user_params else DEFAULT_BOOK_FORMAT
 
-    public_filename = await process_book_download(query, book_id, book_format, file_name, for_user)
+    public_filename = await process_book_download(query, book_id, book_format, for_user)
 
-    log_detail = f"{file_name}.{book_format}"
+    log_detail = f"{book_id}.{book_format}"
     log_detail += ":" + public_filename if public_filename else ""
     logger.log_user_action(query.from_user, "send file", log_detail)
 
 
-async def process_book_download(query, book_id, book_format, file_name, for_user=None):
-    """Обрабатывает скачивание и отправку книги"""
-    processing_msg = await query.message.reply_text(
-        "⏰ <i>Ожидайте, отправляю книгу"+(f" для {for_user.first_name}" if for_user else "")+"...</i>",
-        parse_mode=ParseMode.HTML,
-        disable_notification=True
-    )
+async def process_book_download(query, book_id, book_format, for_user=None):
+    """Обрабатывает скачивание и отправку книги сначала без авторизации на сайте, потом с авторизацией"""
+    book_url = FlibustaClient.get_book_url(book_id)
 
     try:
-        url = f"{FLIBUSTA_BASE_URL}/b/{book_id}/{book_format}"
-        book_data, original_filename = await download_book_with_filename(url)
+        processing_msg = await query.message.reply_text(
+            "⏰ <i>Ожидайте, отправляю книгу" + (f" для {for_user.first_name}" if for_user else "") + "...</i>",
+            parse_mode=ParseMode.HTML,
+            disable_notification=True
+        )
+
+        # url = f"{FLIBUSTA_BASE_URL}/b/{book_id}/{book_format}"
+        # book_data, original_filename = await download_book_with_filename(url)
+
+        # Первая попытка — без авторизации
+        book_data, original_filename = await flibusta_client.download_book(book_id, book_format, auth=False)
         public_filename = original_filename if original_filename else f"{book_id}.{book_format}"
+
+        # Если не удалось — вторая попытка с авторизацией
+        if not book_data:
+            new_msg = "⏰ <i>Требуется больше времени на скачивание" + (f" для {for_user.first_name}" if for_user else "") + "...</i>"
+            await processing_msg.edit_text(new_msg, parse_mode=ParseMode.HTML)
+            book_data, original_filename = await flibusta_client.download_book(book_id, book_format, auth=True)
+            public_filename = original_filename if original_filename else f"{book_id}.{book_format}"
 
         if book_data:
             await query.message.reply_document(
@@ -44,8 +56,8 @@ async def process_book_download(query, book_id, book_format, file_name, for_user
             )
         else:
             await query.message.reply_text(
-                "😞 Не удалось скачать книгу в этом формате" + (f" для {for_user.first_name}" if for_user else "") +
-                f" ({url})",
+                "😞 Не удалось скачать книгу в этом формате" + (f" для {for_user.first_name}" if for_user else ""),
+                # + f" ({book_url})",
                 disable_notification=True
             )
 
@@ -53,14 +65,14 @@ async def process_book_download(query, book_id, book_format, file_name, for_user
         return public_filename
 
     except TimedOut:
-        await handle_timeout_error(processing_msg, book_data, file_name, book_format, query)
+        await handle_timeout_error(processing_msg, book_data, book_id, book_format, query)
     except Exception as e:
         """Обрабатывает ошибку загрузки"""
         print(f"Общая ошибка при отправке книги: {e}")
         await processing_msg.edit_text(
-            f"❌ Произошла ошибка при подготовке книги {url}. Возможно она доступна только в локальной базе"
+            f"❌ Произошла ошибка при подготовке книги {book_url}. Возможно она доступна только в локальной базе"
         )
-        logger.log_user_action(query.from_user.id, "error sending book direct", url)
+        logger.log_user_action(query.from_user.id, "error sending book direct", book_url)
 
     return None
 

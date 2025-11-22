@@ -16,6 +16,13 @@ from admin import admin_cmd, cancel_auth, auth_password, AUTH_PASSWORD, handle_a
 from constants import CLEANUP_INTERVAL
 from health import cleanup_old_sessions
 from logger import logger
+from flibusta_client import flibusta_client
+
+
+async def post_stop(app: Application) -> None:
+    """Вызывается после остановки бота"""
+    # Закрываем открытые сессии с сайтом Флибусты
+    await flibusta_client.close()
 
 async def error_handler(update: Update, context: CallbackContext):
     """Глобальный обработчик ошибок"""
@@ -140,6 +147,9 @@ def main():
 
     application.add_handler(PreCheckoutQueryHandler(pre_checkout))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment))
+
+    # Обработчик после завершения работы бота
+    application.post_stop = post_stop
 
     application.run_polling()
 

@@ -1,17 +1,16 @@
 import os
 import sqlite3
 from collections import namedtuple
-from datetime import date, datetime, timedelta, time
-from decimal import Decimal
 from typing import Dict, List, Any, Coroutine
 
 import mysql.connector
 from contextlib import contextmanager
 
+from flibusta_client import FlibustaClient, flibusta_client
 # from constants import SETTING_SORT_ORDER_DESC
-from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, FLIBUSTA_BASE_URL, MAX_BOOKS_SEARCH, \
+from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, MAX_BOOKS_SEARCH, \
     SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA
-from utils import get_cover_url
+
 
 Book = namedtuple('Book',
                   ['FileName', 'Title', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'BookSize',
@@ -774,9 +773,10 @@ class DatabaseBooks():
             cursor = conn.cursor(buffered=True)
             cursor.execute("""
                 SELECT b.Title, b.Year, sn.SeqName,
-                       GROUP_CONCAT(DISTINCT gl.GenreDesc SEPARATOR ', ') as Genres,
-                       GROUP_CONCAT(DISTINCT CONCAT(an.LastName, ' ', an.FirstName) SEPARATOR ', ') as Authors,
-                       bp.File, b.FileSize, b.Pages, b.Lang, r.LibRate, b.BookId
+                       GROUP_CONCAT(DISTINCT CONCAT(gl.GenreID, ',', gl.GenreDesc) SEPARATOR ',') as Genres,
+                       GROUP_CONCAT(DISTINCT CONCAT(an.AvtorID, ',', an.LastName, ' ', an.FirstName, ' ', an.MiddleName) SEPARATOR ',') as Authors,
+                       bp.File, b.FileSize, b.Pages, b.Lang, r.LibRate, b.BookId,
+                       sn.SeqID
                 FROM libbook b
                 LEFT JOIN libavtor a ON a.BookID = b.BookID
                 LEFT JOIN libavtorname an ON a.AvtorID = an.AvtorID
@@ -796,18 +796,20 @@ class DatabaseBooks():
                 GROUP BY b.Title, b.Year, sn.SeqName, bp.File, b.FileSize, b.Pages, b.Lang
             """, (book_id,))
             result = cursor.fetchone()
-            cover_url = f"{FLIBUSTA_BASE_URL}/ib/{result[5]}" if result[5] else None
+            # cover_url = f"{FLIBUSTA_BASE_URL}/ib/{result[5]}" if result[5] else None
+            cover_url = FlibustaClient.get_cover_url_direct(result[5]) if result[5] else None
             # print(f"DEBUG: cover_url = {cover_url}")
             # Получение ссылки на обложку со страницы книги, если нет в БД
-            if not cover_url:
-                cover_url = await get_cover_url(book_id)
+            if cover_url is None:
+                # cover_url = await get_cover_url(book_id)
+                cover_url = await flibusta_client.get_book_cover_url(book_id)
                 # print(f"DEBUG: cover_url = {cover_url}")
 
             return {
                 'title': result[0],
                 'year': result[1],
                 'series': result[2],
-                'genre': result[3],
+                'genres': result[3],
                 'authors': result[4],
                 'cover_url': cover_url,
                 'size': result[6],
@@ -815,6 +817,7 @@ class DatabaseBooks():
                 'lang': result[8],
                 'rate': result[9],
                 'bookid': result[10],
+                'seqid': result[11],
             } if result else None
 
     async def get_book_details(self, book_id):
@@ -916,7 +919,8 @@ class DatabaseBooks():
             # Получаем фото автора
             cursor.execute("SELECT File FROM libapics WHERE AvtorID = %s", (author_id,))
             photo_result = cursor.fetchone()
-            photo_url = f"{FLIBUSTA_BASE_URL}/ia/{photo_result[0]}" if photo_result else None
+            # photo_url = f"{FLIBUSTA_BASE_URL}/ia/{photo_result[0]}" if photo_result else None
+            photo_url = FlibustaClient.get_author_photo_url(photo_result[0]) if photo_result else None
 
             # Получаем аннотацию автора
             cursor.execute("SELECT title, Body FROM libaannotations WHERE AvtorID = %s", (author_id,))
