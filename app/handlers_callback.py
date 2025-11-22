@@ -1,3 +1,5 @@
+import asyncio
+
 from telegram import Update, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.error import BadRequest
@@ -100,7 +102,11 @@ async def handle_private_callback(query, context, action, params):
     # Прямой поиск обработчика в словаре
     if action in action_handlers:
         handler = action_handlers[action]
-        await handler(query, context, action, params)
+        # await handler(query, context, action, params)
+        # Запускаем асинхронный обработчик
+        asyncio.create_task(
+            handler(query, context, action, params)
+        )
         return
 
     # Затем проверяем префиксы
