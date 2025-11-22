@@ -229,12 +229,12 @@ def format_book_info(book_info):
     rate = book_info['rate']
     # book_id = book_info['bookid']
     series_id = book_info['seqid']
-    if year and year != 0:
-        text += f"\n📅 <b>Год:</b> {year}"
-    if series:
-        text += f"\n📖 <b>Серия:</b> <a href='{FlibustaClient.get_series_url(series_id)}'>{series}</a>"
     if genre_links:
         text += f"\n📑 <b>Жанр(ы):</b> {(genre_links + (',...' if is_truncated else '')) or 'Не указаны'}"
+    if series:
+        text += f"\n📖 <b>Серия:</b> <a href='{FlibustaClient.get_series_url(series_id)}'>{series}</a>"
+    if year and year != 0:
+        text += f"\n📅 <b>Год:</b> {year}"
     if lang:
         text += f"\n🗣️ <b>Язык:</b> {lang}"
     if pages:
