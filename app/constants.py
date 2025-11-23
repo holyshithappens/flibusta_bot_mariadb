@@ -102,7 +102,8 @@ SETTING_OPTIONS = {
         (key, f"{value[0]} {value[1]}") for key, value in BOOK_RATINGS.items()
     ],
     SETTING_SEARCH_AREA: [
-        (SETTING_SEARCH_AREA_B, 'по основным данным'),
+        (SETTING_SEARCH_AREA_B, 'по основным данным книги'),
+        "__NEWLINE__",
         (SETTING_SEARCH_AREA_BA, 'по аннотации книг'),
         (SETTING_SEARCH_AREA_AA, 'по аннотации авторов')
     ]

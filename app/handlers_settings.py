@@ -229,7 +229,10 @@ def create_settings_menu(context:CallbackContext):
             elif setting_type == SETTING_SIZE_LIMIT:
                 # Ищем отображаемое значение в списке настроек
                 current_value = user_params.BookSize
-                for value, display in SETTING_OPTIONS[SETTING_SIZE_LIMIT]:
+                for option in SETTING_OPTIONS[SETTING_SEARCH_AREA]:
+                    if option == "__NEWLINE__":
+                        continue
+                    value, display = option
                     if value == current_value:
                         current_display = f"({display})" if value else ""
                         break
@@ -242,7 +245,10 @@ def create_settings_menu(context:CallbackContext):
             elif setting_type == SETTING_SEARCH_TYPE:
                 # Ищем отображаемое значение в списке настроек
                 current_value = user_params.SearchType
-                for value, display in SETTING_OPTIONS[SETTING_SEARCH_TYPE]:
+                for option in SETTING_OPTIONS[SETTING_SEARCH_AREA]:
+                    if option == "__NEWLINE__":
+                        continue
+                    value, display = option
                     if value == current_value:
                         current_display = f"({display})"
                         break
@@ -258,7 +264,10 @@ def create_settings_menu(context:CallbackContext):
             elif setting_type == SETTING_SEARCH_AREA:
                 # Ищем отображаемое значение в списке настроек
                 current_value = user_params.SearchArea
-                for value, display in SETTING_OPTIONS[SETTING_SEARCH_AREA]:
+                for option in SETTING_OPTIONS[SETTING_SEARCH_AREA]:
+                    if option == "__NEWLINE__":
+                        continue
+                    value, display = option
                     if value == current_value:
                         current_display = f"({display})"
                         break
@@ -305,12 +314,20 @@ def create_settings_keyboard(setting_type, current_value, options):
     else:
         # Для остальных настроек - кнопки в строку
         row = []
-        for value, display_text in options:
+        for option in options:
+            if option == "__NEWLINE__":
+                if row:  # не добавляем пустую строку
+                    keyboard.append(row)
+                    row = []
+                continue
+
+            value, display_text = option
             row.append(InlineKeyboardButton(
                 f"{'✔️ ' if str(value) == str(current_value) else ''}{display_text}",
                 callback_data=f"set_{setting_type}_to_{value}"
             ))
-        keyboard.append(row)
+        if row: # Добавляем последнюю строку
+            keyboard.append(row)
 
     # Добавляем кнопку "Назад"
     keyboard += create_back_button()

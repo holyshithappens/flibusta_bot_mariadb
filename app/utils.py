@@ -9,8 +9,8 @@ from typing import List, Dict, Any, Tuple
 import html
 
 from flibusta_client import FlibustaClient
-from constants import  SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA, \
-    SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS
+from constants import SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA, \
+    SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS, SETTING_SEARCH_AREA_AA
 
 # Пространство имен FB2
 FB2_NAMESPACE = "http://www.gribuser.ru/xml/fictionbook/2.0"
@@ -55,6 +55,7 @@ def form_header_books(page, max_books, found_count, search_type=SEARCH_TYPE_BOOK
     header += f" в серии '{series_name}'" if series_name else ""
     header += f" автора '{author_name}'" if author_name else ""
     header += " по аннотации книги" if search_area == SETTING_SEARCH_AREA_BA else ""
+    header += " по аннотации автора" if search_area == SETTING_SEARCH_AREA_AA else ""
 
     return header
 
