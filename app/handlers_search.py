@@ -10,7 +10,7 @@ from telegram.error import Forbidden
 from handlers_utils import create_books_keyboard, create_series_keyboard, create_authors_keyboard
 from utils import form_header_books
 from database import DB_BOOKS
-from constants import SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS
+from constants import SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS, SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA
 from context import get_user_params, get_last_bot_message_id, set_books, set_last_activity, set_last_bot_message_id, \
     set_last_search_query, set_series, set_last_series_page, get_last_search_query, set_current_series_name, \
     set_authors, set_last_authors_page, set_current_author_id, set_current_author_name, get_pages_of_books, \
@@ -107,15 +107,18 @@ async def async_search_books(context: CallbackContext, query_text: str, processi
 
 async def process_search_books(context: CallbackContext, books, found_books_count: int, processing_msg, query_text: str, user):
     """Обработка и отображение результатов поиска"""
+    user_params = get_user_params(context)
+    # Группировка выдачи
+    search_type = user_params.SearchType
+    # Область поиска
+    search_area = user_params.SearchArea
     # Проверяем, найдены ли книги
     if books:
         # Извлекаем из контекста или БД настройки пользователя
-        user_params =  get_user_params(context)
         # await processing_msg.delete()
         pages_of_result = [books[i:i + user_params.MaxBooks] for i in range(0, len(books), user_params.MaxBooks)]
         page = 0
 
-        search_type = user_params.SearchType
         keyboard = create_books_keyboard(page, pages_of_result)
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -123,7 +126,7 @@ async def process_search_books(context: CallbackContext, books, found_books_coun
             header_found_text = form_header_books(
                 page, user_params.MaxBooks, found_books_count,
                 search_type=search_type,
-                search_area=user_params.SearchArea
+                search_area=search_area
             )
             # result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
             # Заменяем сообщение об ожидании на результаты
@@ -144,7 +147,14 @@ async def process_search_books(context: CallbackContext, books, found_books_coun
             parse_mode=ParseMode.HTML
         )
 
-    logger.log_user_action(user, "searched for books", f"{query_text}; count:{found_books_count}")
+    if search_area == SETTING_SEARCH_AREA_B:
+        by = ' by book info'
+    elif search_area == SETTING_SEARCH_AREA_BA:
+        by = ' by book annotation'
+    else:
+        by = ''
+
+    logger.log_user_action(user, "searched for books" + by, f"{query_text}; count:{found_books_count}")
 
 
 async def handle_search_series(update: Update, context: CallbackContext):
@@ -200,10 +210,12 @@ async def async_search_series(context: CallbackContext, query_text: str, process
         await processing_msg.edit_text(f"❌ Ошибка при поиске: {str(e)}")
 
 async def process_search_series(context: CallbackContext, series, found_series_count: int, processing_msg, query_text: str, user):
+    """Поиск книг с группировкой по сериям"""
+    user_params = get_user_params(context)
+    search_area = user_params.SearchArea
     if series:
         # await processing_msg.delete()
         # Извлекаем из контекста или БД настройки пользователя
-        user_params =  get_user_params(context)
 
         pages_of_series = [series[i:i + user_params.MaxBooks] for i in range(0, len(series), user_params.MaxBooks)]
         page = 0
@@ -212,8 +224,8 @@ async def process_search_series(context: CallbackContext, series, found_series_c
 
         if reply_markup:
             header_found_text = form_header_books(
-                page, user_params.MaxBooks, found_series_count, 'серий',
-                search_area=user_params.SearchArea
+                page, user_params.MaxBooks, found_series_count, SEARCH_TYPE_SERIES,
+                search_area=search_area
             )
             # result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
             await processing_msg.edit_text(header_found_text, reply_markup=reply_markup)
@@ -224,15 +236,22 @@ async def process_search_series(context: CallbackContext, series, found_series_c
             # СОХРАНЯЕМ ID СООБЩЕНИЯ С РЕЗУЛЬТАТАМИ И ЗАПРОС
             set_last_bot_message_id(context, processing_msg.message_id)
             set_last_search_query(context, query_text)
-        else:
-            # result_message = await message.reply_text("😞 Не нашёл подходящих книжных серий. Попробуйте другие критерии поиска")
-            await processing_msg.edit_text(
-                "😞 Не нашёл подходящих книжных серий. Попробуйте другие критерии поиска.",
-                # f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
-                parse_mode=ParseMode.HTML
-            )
+    else:
+        # result_message = await message.reply_text("😞 Не нашёл подходящих книжных серий. Попробуйте другие критерии поиска")
+        await processing_msg.edit_text(
+            "😞 Не нашёл подходящих книжных серий. Попробуйте другие критерии поиска.",
+            # f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
+            parse_mode=ParseMode.HTML
+        )
 
-    logger.log_user_action(user, "searched for series", f"{query_text}; count:{found_series_count}")
+    if search_area == SETTING_SEARCH_AREA_B:
+        by = ' by book info'
+    elif search_area == SETTING_SEARCH_AREA_BA:
+        by = ' by book annotation'
+    else:
+        by = ''
+
+    logger.log_user_action(user, "searched for series" + by, f"{query_text}; count:{found_series_count}")
 
 async def handle_search_series_books(query, context, action, params):
     """Показывает книги выбранной серии"""
@@ -269,7 +288,7 @@ async def handle_search_series_books(query, context, action, params):
                 reply_markup = InlineKeyboardMarkup(keyboard)
 
                 header_text = form_header_books(
-                    page, user_params.MaxBooks, found_books_count, 'книг',
+                    page, user_params.MaxBooks, found_books_count, SEARCH_TYPE_BOOKS,
                     series_name=series_name,
                     search_area=user_params.SearchArea
                 )
@@ -335,10 +354,11 @@ async def async_search_authors(context: CallbackContext, query_text: str, proces
 
 async def process_search_authors(context: CallbackContext, authors, found_authors_count: int, processing_msg, query_text: str, user):
     # Обрабатываем результаты
+    user_params = get_user_params(context)
+    search_area = user_params.SearchArea
     if authors:
         # await processing_msg.delete()
         # Извлекаем из контекста или БД настройки пользователя
-        user_params = get_user_params(context)
 
         pages_of_authors = [authors[i:i + user_params.MaxBooks] for i in range(0, len(authors), user_params.MaxBooks)]
         page = 0
@@ -347,8 +367,8 @@ async def process_search_authors(context: CallbackContext, authors, found_author
 
         if reply_markup:
             header_found_text = form_header_books(
-                page, user_params.MaxBooks, found_authors_count, 'авторов',
-                search_area=user_params.SearchArea
+                page, user_params.MaxBooks, found_authors_count, SEARCH_TYPE_AUTHORS,
+                search_area=search_area
             )
             # result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
             await processing_msg.edit_text(header_found_text, reply_markup=reply_markup)
@@ -359,15 +379,22 @@ async def process_search_authors(context: CallbackContext, authors, found_author
             # СОХРАНЯЕМ ID СООБЩЕНИЯ С РЕЗУЛЬТАТАМИ И ЗАПРОС
             set_last_bot_message_id(context, processing_msg.message_id)
             set_last_search_query(context, query_text)
-        else:
-            # result_message = await message.reply_text("😞 Не нашёл подходящих авторов. Попробуйте другие критерии поиска")
-            await processing_msg.edit_text(
-                "😞 Не нашёл подходящих авторов. Попробуйте другие критерии поиска.",
-                # f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
-                parse_mode=ParseMode.HTML
-            )
+    else:
+        # result_message = await message.reply_text("😞 Не нашёл подходящих авторов. Попробуйте другие критерии поиска")
+        await processing_msg.edit_text(
+            "😞 Не нашёл подходящих авторов. Попробуйте другие критерии поиска.",
+            # f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
+            parse_mode=ParseMode.HTML
+        )
 
-    logger.log_user_action(user, "searched for authors", f"{query_text}; count:{found_authors_count}")
+    if search_area == SETTING_SEARCH_AREA_B:
+        by = ' by book info'
+    elif search_area == SETTING_SEARCH_AREA_BA:
+        by = ' by book annotation'
+    else:
+        by = ''
+
+    logger.log_user_action(user, "searched for authors" + by, f"{query_text}; count:{found_authors_count}")
 
 async def handle_search_author_books(query, context, action, params):
     """Показывает книги выбранного автора"""
@@ -405,7 +432,7 @@ async def handle_search_author_books(query, context, action, params):
             if keyboard:
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 header_text = form_header_books(
-                    page, user_params.MaxBooks, found_books_count, 'книг',
+                    page, user_params.MaxBooks, found_books_count, SEARCH_TYPE_BOOKS,
                     author_name=author_name,
                     search_area=user_params.SearchArea
                 )
@@ -451,7 +478,7 @@ async def handle_page_change(query, context, action, params):
             elif search_context == SEARCH_TYPE_AUTHORS:
                 author_name = get_current_author_name(context)
             header_text = form_header_books(
-                page, user_params.MaxBooks, found_books_count, 'книг',
+                page, user_params.MaxBooks, found_books_count, SEARCH_TYPE_BOOKS,
                 series_name=series_name,
                 author_name=author_name,
                 search_area=user_params.SearchArea
@@ -489,7 +516,7 @@ async def handle_series_page_change(query, context, action, params):
             search_area = user_params.SearchArea
 
             header_found_text = form_header_books(
-                page, user_params.MaxBooks, found_series_count,
+                page, user_params.MaxBooks, found_series_count, SEARCH_TYPE_SERIES,
                 search_area=search_area
             )
             await query.edit_message_text(header_found_text, reply_markup=reply_markup)
@@ -528,7 +555,7 @@ async def handle_authors_page_change(query, context, action, params):
             search_area = user_params.SearchArea
 
             header_found_text = form_header_books(
-                page, user_params.MaxBooks, found_authors_count, 'авторов',
+                page, user_params.MaxBooks, found_authors_count, SEARCH_TYPE_AUTHORS,
                 search_area=search_area
             )
             await query.edit_message_text(header_found_text, reply_markup=reply_markup)

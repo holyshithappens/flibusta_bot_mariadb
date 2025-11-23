@@ -9,7 +9,8 @@ from typing import List, Dict, Any, Tuple
 import html
 
 from flibusta_client import FlibustaClient
-from constants import  SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA #FLIBUSTA_BASE_URL
+from constants import  SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA, \
+    SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS
 
 # Пространство имен FB2
 FB2_NAMESPACE = "http://www.gribuser.ru/xml/fictionbook/2.0"
@@ -34,13 +35,22 @@ def format_size(size_in_bytes):
     return f"{size_in_bytes:.1f}{units[unit_index]}"
 
 
-def form_header_books(page, max_books, found_count, search_type='книг', series_name=None, author_name=None,
+def form_header_books(page, max_books, found_count, search_type=SEARCH_TYPE_BOOKS, series_name=None, author_name=None,
                       search_area=SETTING_SEARCH_AREA_B):
     """ Оформление заголовка сообщения с результатом поиска книг """
     start = max_books * page + 1
     end = min(max_books * (page + 1), found_count)
 
-    header = f"Показываю с {start} по {end} из {found_count} найденных {search_type}"
+    if search_type == SEARCH_TYPE_BOOKS:
+        text = 'книг'
+    elif search_type == SEARCH_TYPE_SERIES:
+        text = 'серий'
+    elif search_type == SEARCH_TYPE_AUTHORS:
+        text = 'авторов'
+    else:
+        text = ''
+
+    header = f"Показываю с {start} по {end} из {found_count} найденных {text}"
 
     header += f" в серии '{series_name}'" if series_name else ""
     header += f" автора '{author_name}'" if author_name else ""

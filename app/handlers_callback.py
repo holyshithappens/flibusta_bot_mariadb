@@ -185,7 +185,7 @@ async def handle_back_to_series(query, context, action, params):
             search_area = user_params.SearchArea
 
             header_found_text = form_header_books(
-                page_num, user_params.MaxBooks, found_series_count, 'серий',
+                page_num, user_params.MaxBooks, found_series_count, SEARCH_TYPE_SERIES,
                 search_area=search_area
             )
             await query.edit_message_text(header_found_text, reply_markup=reply_markup)
@@ -216,7 +216,7 @@ async def handle_back_to_authors(query, context, action, params):
             search_area = user_params.SearchArea
 
             header_found_text = form_header_books(
-                page_num, user_params.MaxBooks, found_authors_count, 'авторов',
+                page_num, user_params.MaxBooks, found_authors_count, SEARCH_TYPE_AUTHORS,
                 search_area=search_area
             )
             await query.edit_message_text(header_found_text, reply_markup=reply_markup)
