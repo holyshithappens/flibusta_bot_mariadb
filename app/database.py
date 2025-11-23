@@ -9,8 +9,7 @@ from contextlib import contextmanager
 from flibusta_client import FlibustaClient, flibusta_client
 # from constants import SETTING_SORT_ORDER_DESC
 from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, MAX_BOOKS_SEARCH, \
-    SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA
-
+    SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA, SETTING_SEARCH_AREA_AA
 
 Book = namedtuple('Book',
                   ['FileName', 'Title', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'BookSize',
@@ -45,11 +44,11 @@ BASE_FIELDS = """
 # Базовые JOIN (БЕЗ FROM)
 BASE_JOINS = """
 LEFT JOIN libavtor a ON a.BookID = b.BookID
-LEFT JOIN libavtorname an ON a.AvtorID = an.AvtorID
+LEFT JOIN libavtorname an ON an.AvtorID = a.AvtorID
 LEFT JOIN libgenre g ON g.BookID = b.BookID
-LEFT JOIN libgenrelist gl ON g.GenreID = gl.GenreID
+LEFT JOIN libgenrelist gl ON gl.GenreID = g.GenreID
 LEFT JOIN libseq s ON s.BookID = b.BookID
-LEFT JOIN libseqname sn on s.SeqID = sn.SeqID
+LEFT JOIN libseqname sn on sn.SeqID = s.SeqID
 LEFT JOIN (
     SELECT BookId, AVG(CAST(Rate AS SIGNED)) as LibRate
     FROM librate 
@@ -71,7 +70,7 @@ WHERE b.Deleted = '0'
 ) as subq 
 """
 
-# Поиск по аннотациям
+# Поиск по аннотациям книг
 SQL_QUERY_ABOOKS = f"""
 select * from (
 SELECT 
@@ -84,6 +83,27 @@ WHERE b.Deleted = '0'
   AND MATCH(ba.Body) AGAINST(%s IN BOOLEAN MODE)
 ) as subq2
 """
+
+# Поиск по аннотациям книг
+SQL_QUERY_AAUTHORS = f"""
+select * from (
+SELECT 
+    {BASE_FIELDS},
+    MATCH(aa.Body) AGAINST(%s IN BOOLEAN MODE) as Relevance
+FROM libaannotations aa
+JOIN libavtor ab ON ab.AvtorId = aa.AvtorId
+JOIN libbook b ON b.BookID = ab.BookID
+{BASE_JOINS}
+WHERE b.Deleted = '0'
+  AND MATCH(aa.Body) AGAINST(%s IN BOOLEAN MODE)
+) as subq2
+"""
+
+SELECT_SQL_QUERY = {
+    SETTING_SEARCH_AREA_B: SQL_QUERY_BOOKS,
+    SETTING_SEARCH_AREA_BA: SQL_QUERY_ABOOKS,
+    SETTING_SEARCH_AREA_AA: SQL_QUERY_AAUTHORS
+}
 
 SQL_QUERY_PARENT_GENRES_COUNT = """
 	select coalesce(GenreMeta,'Неотсортированное'), count(b.BookId)
@@ -848,12 +868,14 @@ class DatabaseBooks():
         params.extend([query] * 2)
 
         # запрос для поиска серий
+
+        sql_query_nested = SELECT_SQL_QUERY.get(search_area)
         sql_query = f"""
         SELECT 
             SeriesTitle, 
             SeriesID,
             COUNT(DISTINCT FileName) as book_count
-        FROM ({SQL_QUERY_ABOOKS if search_area == SETTING_SEARCH_AREA_BA else SQL_QUERY_BOOKS} {sql_where}
+        FROM ({sql_query_nested} {sql_where}
           ORDER BY relevance DESC) as subquery
         WHERE SeriesTitle IS NOT NULL
         GROUP BY SeriesTitle, SeriesID 
@@ -957,12 +979,13 @@ class DatabaseBooks():
         params.extend([query] * 2)
 
         # Модифицируем запрос для поиска авторов
+        sql_query_nested = SELECT_SQL_QUERY.get(search_area)
         sql_query = f"""
         SELECT 
             CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, '')) as AuthorName,
             COUNT(DISTINCT FileName) as book_count,
             AuthorID
-        FROM ({SQL_QUERY_ABOOKS if search_area == SETTING_SEARCH_AREA_BA else SQL_QUERY_BOOKS} {sql_where}) as subquery
+        FROM ({sql_query_nested} {sql_where}) as subquery
         WHERE LastName <> '' OR FirstName <> '' OR MiddleName <> ''
         GROUP BY AuthorName, AuthorID
         ORDER BY book_count DESC, AuthorName
@@ -1024,12 +1047,15 @@ class DatabaseBooks():
 
         select_fields = ', '.join(processed_fields)
 
-        if search_area == SETTING_SEARCH_AREA_BA:
-            # Основной запрос поиска по аннотации книг
-            from_clause = f"FROM ( {SQL_QUERY_ABOOKS} {sql_where} ) as subquery"
-        else:
-            # Основной запрос поиска по основной информации книг
-            from_clause = f"FROM ( {SQL_QUERY_BOOKS} {sql_where} ) as subquery"
+        sql_query_nested = SELECT_SQL_QUERY.get(search_area)
+        from_clause = f"FROM ( {sql_query_nested} {sql_where} ) as subquery"
+
+        # if search_area == SETTING_SEARCH_AREA_BA:
+        #     # Основной запрос поиска по аннотации книг
+        #     from_clause = f"FROM ( {SQL_QUERY_ABOOKS} {sql_where} ) as subquery"
+        # else:
+        #     # Основной запрос поиска по основной информации книг
+        #     from_clause = f"FROM ( {SQL_QUERY_BOOKS} {sql_where} ) as subquery"
 
         sql_query = f"""
             SELECT {select_fields} 

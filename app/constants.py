@@ -42,6 +42,7 @@ SETTING_RATING_FILTER = 'rating_filter'
 SETTING_SEARCH_AREA = 'aux_search'
 SETTING_SEARCH_AREA_B = 'b' # Поиск по основной информации
 SETTING_SEARCH_AREA_BA = 'ba' # Поиск по аннотации книг
+SETTING_SEARCH_AREA_AA = 'aa' # Поиск по аннотации авторов
 
 # SETTING_SORT_ORDER_ASC = 'asc'
 # SETTING_SORT_ORDER_DESC = 'desc'
@@ -102,7 +103,8 @@ SETTING_OPTIONS = {
     ],
     SETTING_SEARCH_AREA: [
         (SETTING_SEARCH_AREA_B, 'по основным данным'),
-        (SETTING_SEARCH_AREA_BA, 'по аннотации книг')
+        (SETTING_SEARCH_AREA_BA, 'по аннотации книг'),
+        (SETTING_SEARCH_AREA_AA, 'по аннотации авторов')
     ]
 }
 
