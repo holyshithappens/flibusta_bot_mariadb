@@ -106,24 +106,26 @@ SELECT_SQL_QUERY = {
 }
 
 SQL_QUERY_PARENT_GENRES_COUNT = """
-	select coalesce(GenreMeta,'Неотсортированное'), count(b.BookId)
+	select coalesce(gl.GenreMeta,'Неотсортированное'), count(b.BookId)
       from libbook b
-        left outer join libgenre g on b.BookId = g.BookId 
-        left outer join libgenrelist gl on g.GenreId = gl.GenreId 
+        left outer join libgenre g on g.BookId = b.BookId 
+        left outer join libgenrelist gl on gl.GenreId = g.GenreId 
     where b.Deleted = '0'
-    group by coalesce(GenreMeta, 'Неотсортированное') 
+      -- AND (#s = '' OR b.Lang = #s)
+    group by coalesce(gl.GenreMeta, 'Неотсортированное')
     order by 1
 """
 
 SQL_QUERY_CHILDREN_GENRES_COUNT = """
-	select gl.GenreDesc, count(g.BookId)
+	select gl.GenreDesc, count(g.BookId), 
+	  gl.GenreId
       from libbook b
-	    left outer join libgenre g on b.BookId = g.BookId 
-        left outer join libgenrelist gl on g.GenreId = gl.GenreId 
+	    left outer join libgenre g on g.BookId = b.BookId 
+        left outer join libgenrelist gl on gl.GenreId = g.GenreId 
     Where 
-      b.Deleted = '0' and
-      gl.GenreMeta = %s
-    group by gl.GenreDesc 
+      b.Deleted = '0'
+      and gl.GenreMeta = %s
+    group by gl.GenreDesc, gl.GenreId
     order by 1	
 """
 
@@ -745,7 +747,7 @@ class DatabaseBooks():
                 cursor = conn.cursor(buffered=True)
                 cursor.execute(SQL_QUERY_CHILDREN_GENRES_COUNT, (parent_genre,))
                 results = cursor.fetchall()
-                DatabaseBooks._class_cached_genres[parent_genre] = [(genre[0].strip(), genre[1]) for genre in results if genre[0].strip()]
+                DatabaseBooks._class_cached_genres[parent_genre] = results #[(genre[0].strip(), genre[1]) for genre in results if genre[0].strip()]
         return DatabaseBooks._class_cached_genres[parent_genre]
 
 

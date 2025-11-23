@@ -1,3 +1,5 @@
+from typing import List, Any
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
@@ -70,17 +72,6 @@ async def handle_book_info(query, context, action, params):
         await query.answer("❌ Ошибка при загрузке информации о книге")
 
 
-async def handle_close_info(query, context, action, params):
-    """Универсальный обработчик закрытия информационных сообщений по ID"""
-    try:
-        # Удаляем все переданные message_id
-        for msg_id in params:
-            await context.bot.delete_message(query.message.chat_id, int(msg_id))
-    except Exception as e:
-        print(f"Error in handle_close_info: {e}")
-        await query.answer("❌ Ошибка при закрытии информации")
-
-
 async def handle_book_details(query, context, action, params):
     """Показывает детальную информацию о книге с обложкой и аннотацией"""
     try:
@@ -102,9 +93,10 @@ async def handle_book_details(query, context, action, params):
         )
 
         # Добавляем кнопку закрытия с ID сообщения
-        keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await info_message.edit_reply_markup(reply_markup)
+        # keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")]]
+        # reply_markup = InlineKeyboardMarkup(keyboard)
+        # await info_message.edit_reply_markup(reply_markup)
+        await add_close_button_to_message(info_message,[info_message.message_id])
 
     except Exception as e:
         print(f"Error in handle_book_details: {e}")
@@ -136,9 +128,10 @@ async def handle_author_info(query: CallbackQuery, context: CallbackContext, act
         message_ids.append(bio_message.message_id)
 
         # Кнопка закрытия с передачей всех message_id
-        close_data = f"close_info:{':'.join(map(str, message_ids))}"
-        keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=close_data)]]
-        await bio_message.edit_reply_markup(InlineKeyboardMarkup(keyboard))
+        # close_data = f"close_info:{':'.join(map(str, message_ids))}"
+        # keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=close_data)]]
+        # await bio_message.edit_reply_markup(InlineKeyboardMarkup(keyboard))
+        await add_close_button_to_message(bio_message,message_ids)
 
     except Exception as e:
         print(f"Error in handle_author_info: {e}")
@@ -168,10 +161,32 @@ async def handle_book_reviews(query, context, action, params):
             )
 
         # Добавляем кнопку закрытия с ID сообщения
-        keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await info_message.edit_reply_markup(reply_markup)
+        # keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")]]
+        # reply_markup = InlineKeyboardMarkup(keyboard)
+        # await info_message.edit_reply_markup(reply_markup)
+        await add_close_button_to_message(info_message,[info_message.message_id])
 
     except Exception as e:
         print(f"Error in handle_book_reviews: {e}")
         await query.answer("❌ Ошибка при загрузке отзывов")
+
+
+async def add_close_button_to_message(to_message, close_message_ids: List[Any]):
+    # Добавляем кнопку закрытия с ID сообщения
+    close_data = ':'.join(map(str, close_message_ids))
+    # print(f"DEBUG: {close_data}")
+    keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{close_data}")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await to_message.edit_reply_markup(reply_markup)
+
+
+async def handle_close_info(query, context, action, params):
+    """Универсальный обработчик закрытия информационных сообщений по ID"""
+    try:
+        # Удаляем все переданные message_id
+        for msg_id in params:
+            # print(f"DEBUG: {msg_id}")
+            await context.bot.delete_message(query.message.chat_id, int(msg_id))
+    except Exception as e:
+        print(f"Error in handle_close_info: {e}")
+        await query.answer("❌ Ошибка при закрытии информации")

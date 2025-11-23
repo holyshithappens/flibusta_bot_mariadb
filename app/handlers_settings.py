@@ -229,7 +229,7 @@ def create_settings_menu(context:CallbackContext):
             elif setting_type == SETTING_SIZE_LIMIT:
                 # Ищем отображаемое значение в списке настроек
                 current_value = user_params.BookSize
-                for option in SETTING_OPTIONS[SETTING_SEARCH_AREA]:
+                for option in SETTING_OPTIONS[SETTING_SIZE_LIMIT]:
                     if option == "__NEWLINE__":
                         continue
                     value, display = option
@@ -245,7 +245,7 @@ def create_settings_menu(context:CallbackContext):
             elif setting_type == SETTING_SEARCH_TYPE:
                 # Ищем отображаемое значение в списке настроек
                 current_value = user_params.SearchType
-                for option in SETTING_OPTIONS[SETTING_SEARCH_AREA]:
+                for option in SETTING_OPTIONS[SETTING_SEARCH_TYPE]:
                     if option == "__NEWLINE__":
                         continue
                     value, display = option

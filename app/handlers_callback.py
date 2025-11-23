@@ -8,7 +8,7 @@ from telegram.ext import CallbackContext
 from database import DB_BOOKS
 from handlers_group import handle_group_callback
 from handlers_info import handle_close_info, handle_book_reviews, handle_book_info, handle_book_details, \
-    handle_author_info
+    handle_author_info, add_close_button_to_message
 from handlers_search import handle_authors_page_change, handle_series_page_change, handle_page_change, \
     handle_search_series_books, handle_search_author_books
 from handlers_settings import create_rating_filter_keyboard, show_settings_menu, handle_set_actions, \
@@ -20,6 +20,7 @@ from constants import SETTING_MAX_BOOKS, SETTING_LANG_SEARCH, \
     SETTING_SEARCH_AREA, SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS, SETTING_SIZE_LIMIT
 from context import get_pages_of_series, get_found_series_count, get_pages_of_authors, get_found_authors_count, \
     get_user_params, update_user_params, get_last_series_page, get_last_authors_page
+from flibusta_client import FlibustaClient
 from utils import form_header_books
 from health import log_stats
 from logger import logger
@@ -135,24 +136,28 @@ async def handle_private_callback(query, context, action, params):
 async def handle_show_genres(query, context, action, params):
     """Показывает жанры выбранной категории"""
     try:
-        genre_index = int(params[0])  # Получаем индекс
+        genre_index = int(params[0])  # Получаем genre index
 
         # Получаем полный список жанров
         results = DB_BOOKS.get_parent_genres_with_counts()
 
         parent_genre = results[genre_index][0]  # Получаем название по индексу
+        # print(f"DEBUG: {genre_id}")
         genres = DB_BOOKS.get_genres_with_counts(parent_genre)
+        # print(f"DEBUG: {genres}")
 
         if genres:
             genres_html = f"<b>{parent_genre}</b>\n\n"
-            for genre,count in genres:
+            for genre_name,count,genre_id in genres:
                count_text = f" ({count:,})".replace(",", " ")  if count else " (0)"
-               genres_html += f"<code>{genre}</code>{count_text}\n"
-            await query.message.reply_text(genres_html, parse_mode=ParseMode.HTML)
+               genre_link = FlibustaClient.get_genre_url(genre_id)
+               genres_html += f"<a href='{genre_link}'>{genre_name}</a>{count_text}\n"
+            genres_message = await query.message.reply_text(genres_html, parse_mode=ParseMode.HTML)
+            await add_close_button_to_message(genres_message, [genres_message.message_id])
         else:
            await query.message.reply_text("❌ Жанры не найдены для этой категории", parse_mode=ParseMode.HTML)
 
-        logger.log_user_action(query.from_user, "show genre", parent_genre)
+        logger.log_user_action(query.from_user, "show genres of parent genre", parent_genre)
 
     except Exception as e:
         print(f"Error in handle_show_genres: {e}")
