@@ -18,10 +18,6 @@ async def handle_send_file(query, context, action, params, for_user = None):
 
     public_filename = await process_book_download(query, book_id, book_format, for_user)
 
-    # Сообщение об истечении срока аренды vps
-    message = get_short_donation_notice()
-    await query.message.reply_text(message, parse_mode='Markdown')
-
     log_detail = f"{book_id}.{book_format}"
     log_detail += ":" + public_filename if public_filename else ""
     logger.log_user_action(query.from_user, "send file", log_detail)
@@ -53,10 +49,16 @@ async def process_book_download(query, book_id, book_format, for_user=None):
             public_filename = original_filename if original_filename else f"{book_id}.{book_format}"
 
         if book_data:
+            # Сообщение об истечении срока аренды vps
+            message = get_short_donation_notice()
+            # await query.message.reply_text(message, parse_mode='Markdown')
+
             await query.message.reply_document(
                 document=book_data,
                 filename=public_filename,
-                disable_notification=True
+                disable_notification=True,
+                caption=message,
+                parse_mode=ParseMode.MARKDOWN
             )
         else:
             await query.message.reply_text(
