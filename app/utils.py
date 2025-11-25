@@ -1,9 +1,10 @@
 import os
 import re
 import sys
-from urllib.parse import unquote
+from datetime import datetime
+# from urllib.parse import unquote
 import aiohttp
-from bs4 import BeautifulSoup
+# from bs4 import BeautifulSoup
 import importlib.util
 from typing import List, Dict, Any, Tuple
 import html
@@ -309,6 +310,17 @@ def clean_html_tags(text):
     clean_text = html.escape(clean_text)
     clean_text = clean_text.strip()
     return clean_text
+
+
+def get_short_donation_notice():
+    # Получаем дату окончания из переменных окружения
+    end_date_str = os.getenv('VPS_EXPIRY_DATE', '2026-04-04')
+    end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+    days_left = (end_date - datetime.now()).days
+
+    return f"💡 До конца аренды VPS: {days_left} дней ({end_date_str}). Поддержи бота! /donate." + \
+        " Все средства пойдут на оплату аренды VPS. Даже небольшой вклад поможет сохранить бота."
+
 
 # async def get_cover_url(book_id: str):
 #     """Простой поиск обложки через BeautifulSoup"""

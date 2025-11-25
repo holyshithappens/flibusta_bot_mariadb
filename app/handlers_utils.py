@@ -5,7 +5,7 @@ from telegram.error import TimedOut
 from context import get_user_params
 from constants import  BOOK_RATINGS, SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS, \
     DEFAULT_BOOK_FORMAT #,FLIBUSTA_BASE_URL
-from utils import format_size, upload_to_tmpfiles
+from utils import format_size, upload_to_tmpfiles,  get_short_donation_notice
 from logger import logger
 from flibusta_client import flibusta_client, FlibustaClient
 
@@ -17,6 +17,10 @@ async def handle_send_file(query, context, action, params, for_user = None):
     book_format = user_params.BookFormat if user_params else DEFAULT_BOOK_FORMAT
 
     public_filename = await process_book_download(query, book_id, book_format, for_user)
+
+    # Сообщение об истечении срока аренды vps
+    message = get_short_donation_notice()
+    await query.message.reply_text(message, parse_mode='Markdown')
 
     log_detail = f"{book_id}.{book_format}"
     log_detail += ":" + public_filename if public_filename else ""
