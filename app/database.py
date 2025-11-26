@@ -1063,7 +1063,7 @@ class DatabaseBooks():
         sql_query = f"""
             SELECT {select_fields} 
             {from_clause}
-            GROUP BY {fields[0]}
+            -- GROUP BY {fields[0]}
             ORDER BY Relevance DESC, FileName {sort_order}
             LIMIT {MAX_BOOKS_SEARCH}
         """
