@@ -43,9 +43,11 @@ BASE_FIELDS = """
 
 # Базовые JOIN (БЕЗ FROM)
 BASE_JOINS = """
-LEFT JOIN (select bookid, min(avtorid) as avtorid from libavtor group by bookid) a ON a.BookID = b.BookID 
+-- LEFT JOIN (select bookid, min(avtorid) as avtorid from libavtor group by bookid) a ON a.BookID = b.BookID
+LEFT JOIN libavtor a ON a.BookID = b.BookID
 LEFT JOIN libavtorname an ON an.AvtorID = a.AvtorID
 LEFT JOIN (select bookid, min(genreid) as genreid from libgenre group by bookid) g ON g.BookID = b.BookID
+-- LEFT JOIN libgenre g ON g.BookID = b.BookID
 LEFT JOIN libgenrelist gl ON gl.GenreID = g.GenreID
 LEFT JOIN libseq s ON s.BookID = b.BookID
 LEFT JOIN libseqname sn on sn.SeqID = s.SeqID
@@ -1061,11 +1063,17 @@ class DatabaseBooks():
         #     from_clause = f"FROM ( {SQL_QUERY_BOOKS} {sql_where} ) as subquery"
 
         sql_query = f"""
-            SELECT {select_fields} 
+            select {select_fields} from (
+            SELECT {select_fields},
+              ROW_NUMBER() OVER (PARTITION BY FileName ORDER BY FileName) AS rn 
             {from_clause}
             -- GROUP BY {fields[0]}
             ORDER BY Relevance DESC, FileName {sort_order}
             LIMIT {MAX_BOOKS_SEARCH}
+            ) as ranked
+            where rn = 1
+            ORDER BY Relevance DESC, FileName {sort_order}
+            -- LIMIT {MAX_BOOKS_SEARCH}
         """
 
         # """ f"SELECT COUNT(*) FROM(SELECT {select_fields} {from_clause} GROUP BY {fields[0]}) as subquery2" """
