@@ -25,27 +25,27 @@ BASE_FIELDS = """
     b.BookID as FileName,
     upper(b.Lang) as SearchLang,
     b.Title,
+    b.FileSize as BookSize,
+    b.Year as SearchYear,
+    case 
+      when b.FileSize <= 800 * 1024 then 'less800'
+      when b.FileSize > 800 * 1024 then 'more800'
+    end as BookSizeCat,  
     an.LastName,
     an.FirstName, 
     an.MiddleName,
     an.AvtorId as AuthorID,
     gl.GenreDesc AS Genre,
-    b.FileSize as BookSize,
-    ROUND(COALESCE(r.LibRate, 0)) as LibRate,
-    case 
-      when b.FileSize <= 800 * 1024 then 'less800'
-      when b.FileSize > 800 * 1024 then 'more800'
-    end as BookSizeCat,  
     sn.SeqName as SeriesTitle, 
     sn.SeqId as SeriesID, 
-    b.Year as SearchYear
+    ROUND(COALESCE(r.LibRate, 0)) as LibRate
 """
 
 # Базовые JOIN (БЕЗ FROM)
 BASE_JOINS = """
-LEFT JOIN libavtor a ON a.BookID = b.BookID
+LEFT JOIN (select bookid, min(avtorid) as avtorid from libavtor group by bookid) a ON a.BookID = b.BookID 
 LEFT JOIN libavtorname an ON an.AvtorID = a.AvtorID
-LEFT JOIN libgenre g ON g.BookID = b.BookID
+LEFT JOIN (select bookid, min(genreid) as genreid from libgenre group by bookid) g ON g.BookID = b.BookID
 LEFT JOIN libgenrelist gl ON gl.GenreID = g.GenreID
 LEFT JOIN libseq s ON s.BookID = b.BookID
 LEFT JOIN libseqname sn on sn.SeqID = s.SeqID
@@ -1045,7 +1045,8 @@ class DatabaseBooks():
         # Всегда используем sum для Relevance
         processed_fields = []
         for field in fields:
-            processed_fields.append(f"max({field})")
+            # processed_fields.append(f"max({field})")
+            processed_fields.append(f"{field}")
 
         select_fields = ', '.join(processed_fields)
 
