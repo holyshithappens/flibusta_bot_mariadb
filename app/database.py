@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from flibusta_client import FlibustaClient, flibusta_client
 # from constants import SETTING_SORT_ORDER_DESC
 from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, MAX_BOOKS_SEARCH, \
-    SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA, SETTING_SEARCH_AREA_AA
+    SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA, SETTING_SEARCH_AREA_AA, MAX_SERIES_SEARCH, MAX_AUTHORS_SEARCH
 
 Book = namedtuple('Book',
                   ['FileName', 'Title', 'LastName', 'FirstName', 'MiddleName', 'Genre', 'BookSize',
@@ -862,6 +862,21 @@ class DatabaseBooks():
                 'annotation': annotation_result[1]
             } if annotation_result else None
 
+    @classmethod
+    def build_sql_query_series(cls, sql_query_nested, sql_where) -> str:
+        """Сбор sql запроса для поиска серий"""
+        return f"""
+        SELECT 
+            SeriesTitle, 
+            SeriesID,
+            COUNT(DISTINCT FileName) as book_count
+        FROM ({sql_query_nested} {sql_where}
+          ORDER BY relevance DESC) as subquery
+        WHERE SeriesTitle IS NOT NULL
+        GROUP BY SeriesTitle, SeriesID 
+        ORDER BY book_count DESC, SeriesTitle
+        LIMIT {MAX_SERIES_SEARCH}
+        """
 
     def search_series(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B, sort_order=None, series_id=0, author_id=0):
         """Ищет серии по запросу"""
@@ -874,20 +889,7 @@ class DatabaseBooks():
         # запрос для поиска серий
 
         sql_query_nested = SELECT_SQL_QUERY.get(search_area)
-        sql_query = f"""
-        SELECT 
-            SeriesTitle, 
-            SeriesID,
-            COUNT(DISTINCT FileName) as book_count
-        FROM ({sql_query_nested} {sql_where}
-          ORDER BY relevance DESC) as subquery
-        WHERE SeriesTitle IS NOT NULL
-        GROUP BY SeriesTitle, SeriesID 
-        ORDER BY book_count DESC, SeriesTitle
-        LIMIT {MAX_BOOKS_SEARCH}
-        """
-
-        # sql_query_cnt = f"SELECT COUNT(*) FROM ({sql_query}) as subquery2"
+        sql_query = self.build_sql_query_series(sql_query_nested, sql_where)
 
         # #DEBUG
         # print(f"DEBUG: sql_query = {sql_query}")
@@ -897,9 +899,6 @@ class DatabaseBooks():
             cursor = conn.cursor(buffered=True)
             cursor.execute(sql_query, params)
             series = cursor.fetchall()
-            # cursor.execute(sql_query_cnt, params)
-            # count = cursor.fetchone()[0]
-            # count = len(series)
 
         return series
 
@@ -973,6 +972,20 @@ class DatabaseBooks():
             """, (book_id,))
             return cursor.fetchall()
 
+    @classmethod
+    def build_sql_query_authors(cls,sql_query_nested, sql_where) -> str:
+        """Собирает SQL запрос поиска авторов"""
+        return f"""
+        SELECT 
+            CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, '')) as AuthorName,
+            COUNT(DISTINCT FileName) as book_count,
+            AuthorID
+        FROM ({sql_query_nested} {sql_where}) as subquery
+        WHERE LastName <> '' OR FirstName <> '' OR MiddleName <> ''
+        GROUP BY AuthorName, AuthorID
+        ORDER BY book_count DESC, AuthorName
+        LIMIT {MAX_AUTHORS_SEARCH}
+        """
 
     def search_authors(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B, sort_order=None, series_id=0, author_id=0):
         """Ищет авторов по запросу"""
@@ -984,29 +997,92 @@ class DatabaseBooks():
 
         # Модифицируем запрос для поиска авторов
         sql_query_nested = SELECT_SQL_QUERY.get(search_area)
-        sql_query = f"""
-        SELECT 
-            CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, '')) as AuthorName,
-            COUNT(DISTINCT FileName) as book_count,
-            AuthorID
-        FROM ({sql_query_nested} {sql_where}) as subquery
-        WHERE LastName <> '' OR FirstName <> '' OR MiddleName <> ''
-        GROUP BY AuthorName, AuthorID
-        ORDER BY book_count DESC, AuthorName
-        LIMIT {MAX_BOOKS_SEARCH}
-        """
-
-        # sql_query_cnt = f"SELECT COUNT(*) FROM ({sql_query}) as subquery2"
+        sql_query = self.build_sql_query_authors(sql_query_nested, sql_where)
 
         with self.connect() as conn:
             cursor = conn.cursor(buffered=True)
             cursor.execute(sql_query, params)
             authors = cursor.fetchall()
-            # cursor.execute(sql_query_cnt, params)
-            # count = cursor.fetchone()[0]
-            # count = len(authors)
 
         return authors
+
+    def search_pop_books(self, filter_recent:int, current_date:str, days_back:int, lang, size_limit, rating_filter=None):
+        """Поиск популярных книг за период"""
+        assert lang.isalpha() and len(lang) <= 3, "Invalid lang"
+
+        sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
+
+        sql_query_nested = DatabaseBooks.build_sql_query_pop(self, filter_recent, current_date, days_back)
+
+        sql_query = f"""
+    SELECT {BASE_FIELDS},
+        b.relevance 
+    FROM ( {sql_query_nested} {sql_where} ) b
+    {BASE_JOINS}
+    ORDER BY b.relevance DESC, b.relevance_oppos DESC;
+        """
+
+        with self.connect() as conn:
+            cursor = conn.cursor(buffered=True)
+            cursor.execute(sql_query)
+            books = cursor.fetchall()
+
+        return books
+
+
+    @staticmethod
+    def build_sql_query_pop(self, filter_recent:int, current_date:str, days_back:int):
+        """Поиск популярных книг за период"""
+        assert filter_recent in (0, 1), "filter_recent must be 0 or 1"
+        assert 1 <= days_back <= 365, "days_back out of range"
+
+        return f"""
+    SELECT 
+        b.BookID AS FileName,
+        b.Lang,
+        b.Title,
+        b.FileSize AS BookSize,
+        b.Year AS SearchYear,
+        CASE {filter_recent}
+            WHEN 0 THEN COALESCE(ra.cnt, 0) + COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0)
+            WHEN 1 THEN COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0) 
+        END AS relevance,
+        CASE {1 - filter_recent}
+            WHEN 0 THEN COALESCE(ra.cnt, 0) + COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0)
+            WHEN 1 THEN COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0) 
+        END AS relevance_oppos
+    FROM libbook b
+    LEFT JOIN (
+        SELECT bookid, COUNT(DISTINCT id) AS cnt
+        FROM librate
+        GROUP BY bookid
+    ) ra ON ra.BookId = b.BookId
+    LEFT JOIN (
+        SELECT bid AS bookid, COUNT(DISTINCT id) AS cnt
+        FROM librecs
+        WHERE '{current_date}' - INTERVAL {days_back} DAY <= timestamp
+           OR {filter_recent} = 0
+        GROUP BY bid
+    ) re ON re.BookId = b.BookId
+    LEFT JOIN (
+        SELECT bookid, COUNT(DISTINCT time) AS cnt
+        FROM libreviews
+        WHERE '{current_date}' - INTERVAL {days_back} DAY <= time
+           OR {filter_recent} = 0
+        GROUP BY bookid
+    ) rv ON rv.BookId = b.BookId
+    WHERE b.Deleted = '0'
+    ORDER BY 
+        CASE {filter_recent}
+            WHEN 0 THEN COALESCE(ra.cnt, 0) + COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0)
+            WHEN 1 THEN COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0)
+        END DESC,
+        CASE {1 - filter_recent}
+            WHEN 0 THEN COALESCE(ra.cnt, 0) + COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0)
+            WHEN 1 THEN COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0)
+        END DESC
+    LIMIT {MAX_BOOKS_SEARCH}
+        """
 
 
     @staticmethod

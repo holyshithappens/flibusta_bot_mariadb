@@ -83,12 +83,10 @@ async def successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     user = update.message.from_user
     print(f"DEBUG: Получен донат: {stars_amount} звёзд от пользователя {user.id}")
-    logger.log_user_action(user.id, "received TG stars", stars_amount)
-
+    logger.log_user_action(user.id, f"payment_id: {payment.telegram_payment_charge_id}, received TG stars:", stars_amount)
 
 
 def main():
-
 
     # Получаем токен из переменной окружения
     TOKEN = os.getenv("BOT_TOKEN")
