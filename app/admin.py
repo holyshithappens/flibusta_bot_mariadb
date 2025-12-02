@@ -8,13 +8,13 @@ from telegram.constants import ParseMode
 from telegram.ext import CallbackContext, ConversationHandler
 
 from context import get_user_params, update_user_params
-from database import DatabaseLogs
+from database import DB_LOGS
 
 # Добавляем константы для пагинации
 USERS_PER_PAGE = 10
 
 # Создаем экземпляр базы данных логов
-DB_LOGS = DatabaseLogs()
+# DB_LOGS = DatabaseLogs()
 
 # Админские кнопки: ключ - имя обработчика, значение - текст кнопки
 # Добавляем новые админские кнопки
@@ -401,6 +401,9 @@ async def admin_user_stats(update: Update, context: CallbackContext, from_callba
     # Получаем статистику по дням
     daily_stats = DB_LOGS.get_daily_user_stats(7)
 
+    # Получаем статистику по донатам
+    payment_stats = DB_LOGS.get_payment_stats(30)
+
     stats_text = f"""
 📈 <b>Статистика пользователей</b>
 
@@ -434,11 +437,24 @@ async def admin_user_stats(update: Update, context: CallbackContext, from_callba
 
     stats_text += "</pre>"
 
+    stats_text += f"""
+    💰 <b>Статистика платежей (за 30 дней)</b>
+
+    📊 <b>Общая статистика:</b>
+    • Всего платежей: <code>{stats['total_payments']}</code>
+    • Общая сумма: <code>{stats['total_amount']:.2f} USD</code>
+    • Средний чек: <code>{stats['avg_amount']:.2f} USD</code>
+    • Уникальных доноров: <code>{stats['unique_donors']}</code>
+
+    📅 <b>По дням:</b>
+    """
+
     # Кнопки действий
     keyboard = [
         [InlineKeyboardButton("📋 Детальный список пользователей", callback_data="users_list:0")],
         [InlineKeyboardButton("🔍 Топ поисковых запросов", callback_data="top_searches")],
-        [InlineKeyboardButton("📥 Топ скачиваний", callback_data="top_downloads")]
+        [InlineKeyboardButton("📥 Топ скачиваний", callback_data="top_downloads")],
+        [InlineKeyboardButton("📋 Список платежей", callback_data="payments_list:0")]
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)

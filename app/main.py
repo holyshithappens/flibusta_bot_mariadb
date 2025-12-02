@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from telegram.request import HTTPXRequest
 from telegram.error import Forbidden, BadRequest, TimedOut
 
-from handlers_basic import start_cmd, genres_cmd, settings_cmd, donate_cmd, help_cmd, about_cmd, news_cmd
+from handlers_basic import start_cmd, genres_cmd, settings_cmd, donate_cmd, help_cmd, about_cmd, news_cmd, pop_cmd
 from handlers_search import handle_message
 from handlers_callback import button_callback
 from handlers_group import handle_group_message
@@ -15,8 +15,9 @@ from handlers_group import handle_group_message
 from admin import admin_cmd, cancel_auth, auth_password, AUTH_PASSWORD, handle_admin_buttons, ADMIN_BUTTONS
 from constants import CLEANUP_INTERVAL
 from health import cleanup_old_sessions
-from logger import logger
+# from logger import logger
 from flibusta_client import flibusta_client
+from handlers_payments import pre_checkout, successful_payment
 
 
 async def post_stop(app: Application) -> None:
@@ -57,6 +58,7 @@ async def set_commands(application: Application):
         BotCommand("about", "Инфа о боте и библиотеке"),
         BotCommand("help", "Помощь по запросам"),
         BotCommand("genres", "Список жанров"),
+        BotCommand("pop", "Популярные и новинки"),
         # BotCommand("langs", "Доступные языки"),
         BotCommand("set", "Настройки поиска"),
         BotCommand("donate", "Поддержать разработчика")
@@ -64,26 +66,6 @@ async def set_commands(application: Application):
     await application.bot.set_my_commands(commands)
 
 
-# ==== ОБРАБОТКА ПОЛУЧЕНИЯ ДОНАТОВ ====
-
-async def pre_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.pre_checkout_query
-    await query.answer(ok=True)
-
-
-async def successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    payment = update.message.successful_payment
-    stars_amount = payment.total_amount
-
-    await update.message.reply_photo(
-        photo='https://gifdb.com/images/high/robocop-thank-you-for-your-cooperation-gqen0zm4lhjdh14d.webp',
-        caption=f"🎉 Спасибо за донат! Вы отправили {stars_amount} звёзд!\n" 
-                f"Все средства пойдут на аренду VPS! ❤️"
-    )
-
-    user = update.message.from_user
-    print(f"DEBUG: Получен донат: {stars_amount} звёзд от пользователя {user.id}")
-    logger.log_user_action(user.id, f"payment_id: {payment.telegram_payment_charge_id}, received TG stars:", stars_amount)
 
 
 def main():
@@ -120,6 +102,7 @@ def main():
     application.add_handler(CommandHandler("about", about_cmd))
     application.add_handler(CommandHandler("help", help_cmd))
     application.add_handler(CommandHandler("genres", genres_cmd))
+    application.add_handler(CommandHandler("pop", pop_cmd))
     # application.add_handler(CommandHandler("langs", langs_cmd))
     application.add_handler(CommandHandler("set", settings_cmd))
     application.add_handler(CommandHandler("donate", donate_cmd))

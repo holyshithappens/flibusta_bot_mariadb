@@ -9,8 +9,8 @@ from database import DB_BOOKS
 from handlers_group import handle_group_callback
 from handlers_info import handle_close_info, handle_book_reviews, handle_book_info, handle_book_details, \
     handle_author_info, add_close_button_to_message
-from handlers_search import handle_authors_page_change, handle_series_page_change, handle_page_change, \
-    handle_search_series_books, handle_search_author_books
+from handlers_search import handle_authors_page_change, handle_series_page_change, handle_books_page_change, \
+    handle_search_series_books, handle_search_author_books, handle_message, handle_search_books
 from handlers_settings import create_rating_filter_keyboard, show_settings_menu, handle_set_actions, \
     handle_set_max_books, handle_set_lang_search, handle_set_size_limit, handle_set_book_format, \
     handle_set_search_type, handle_set_rating_filter, handle_set_search_area
@@ -19,7 +19,8 @@ from constants import SETTING_MAX_BOOKS, SETTING_LANG_SEARCH, \
     SETTING_BOOK_FORMAT, SETTING_SEARCH_TYPE, SETTING_OPTIONS, SETTING_TITLES, SETTING_RATING_FILTER, \
     SETTING_SEARCH_AREA, SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS, SETTING_SIZE_LIMIT
 from context import get_pages_of_series, get_found_series_count, get_pages_of_authors, get_found_authors_count, \
-    get_user_params, update_user_params, get_last_series_page, get_last_authors_page
+    get_user_params, update_user_params, get_last_series_page, get_last_authors_page, set_switch_search, \
+    get_switch_search
 from flibusta_client import FlibustaClient
 from utils import form_header_books
 from health import log_stats
@@ -63,12 +64,13 @@ async def button_callback(update: Update, context: CallbackContext):
             await handle_admin_callback(update, context)
             return
         # Существующая логика для личных сообщений
-        await handle_private_callback(query, context, action, params)
+        await handle_private_callback(update, context, action, params)
 
     await log_stats(context)
 
 
-async def handle_private_callback(query, context, action, params):
+async def handle_private_callback(update, context, action, params):
+    query = update.callback_query
     # Затем проверяем ПОЛЬЗОВАТЕЛЬСКИЕ действия
     action_handlers = {
         'send_file': handle_send_file,
@@ -112,7 +114,7 @@ async def handle_private_callback(query, context, action, params):
 
     # Затем проверяем префиксы
     if action.startswith(f"{SEARCH_TYPE_BOOKS}_page_"):
-        await handle_page_change(query, context, action, params)
+        await handle_books_page_change(query, context, action, params)
         return
 
     if action.startswith(f"{SEARCH_TYPE_SERIES}_page_"):
@@ -126,6 +128,11 @@ async def handle_private_callback(query, context, action, params):
     # Обработка set_ действий
     if action.startswith('set_'):
         await handle_set_actions(query, context, action, params)
+        return
+
+    # Обработка просмотра популярных книг и новинок
+    if action.startswith('show_pop_'):
+        await handle_show_pops(update, context, action, params)
         return
 
     # Если ничего не найдено
@@ -188,10 +195,12 @@ async def handle_back_to_series(query, context, action, params):
             found_series_count = get_found_series_count(context)
             user_params = get_user_params(context)
             search_area = user_params.SearchArea
+            show_pop = get_switch_search(context)
 
             header_found_text = form_header_books(
                 page_num, user_params.MaxBooks, found_series_count, SEARCH_TYPE_SERIES,
-                search_area=search_area
+                search_area=search_area,
+                show_pop=show_pop
             )
             await query.edit_message_text(header_found_text, reply_markup=reply_markup)
         else:
@@ -219,10 +228,12 @@ async def handle_back_to_authors(query, context, action, params):
             found_authors_count = get_found_authors_count(context)
             user_params = get_user_params(context)
             search_area = user_params.SearchArea
+            show_pop = get_switch_search(context)
 
             header_found_text = form_header_books(
                 page_num, user_params.MaxBooks, found_authors_count, SEARCH_TYPE_AUTHORS,
-                search_area=search_area
+                search_area=search_area,
+                show_pop=show_pop
             )
             await query.edit_message_text(header_found_text, reply_markup=reply_markup)
 
@@ -276,3 +287,19 @@ async def handle_reset_ratings(query, context, action, params):
 
     await query.edit_message_text(SETTING_TITLES[SETTING_RATING_FILTER], reply_markup=reply_markup)
     logger.log_user_action(query.from_user, "reset rating filter")
+
+
+async def handle_show_pops(update, context, action, params):
+    """Запуск поиска популярных книг и новинок"""
+    try:
+        set_switch_search(context, action)
+        # await handle_message(update, context)
+        await handle_search_books(update, context)
+
+        logger.log_user_action(update.callback_query.from_user, "show populars", action)
+
+    except Exception as e:
+        print(f"Error in handle_show_pops: {e}")
+        await update.callback_query.message.reply_text("❌ Ошибка при загрузке популярных книг/новинок")
+
+    await log_stats(context)

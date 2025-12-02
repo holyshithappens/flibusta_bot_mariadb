@@ -4,9 +4,10 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Callbac
 from telegram.ext import CallbackContext
 from telegram.constants import ParseMode
 
+from handlers_utils import add_close_button
 from handlers_settings import show_settings_menu
 from utils import get_latest_news, get_platform_recommendations
-from constants import BOT_NEWS_FILE_PATH
+from constants import BOT_NEWS_FILE_PATH, SHOW_POPULAR_ALL_TIME, SHOW_POPULAR_30_DAYS, SHOW_POPULAR_7_DAYS, SHOW_NOVELTY
 from database import DB_BOOKS
 from logger import logger
 from health import log_stats
@@ -30,7 +31,7 @@ async def start_cmd(update: Update, context: CallbackContext):
 /about - информация о боте и библиотеке 
 /help - помощь в составлении поисковых запросов
 /genres - посмотреть доступные жанры
-/langs - посмотреть доступные языки книг по убыванию их количества
+/pop - популярные книги и новинки библиотеки
 /set - установка настроек поиска и вывода книг
 /donate - поддержать разработчика
     """
@@ -69,6 +70,20 @@ async def genres_cmd(update: Update, context: CallbackContext):
     await log_stats(context)
     user = update.message.from_user
     logger.log_user_action(user, "viewed parent genres")
+
+
+async def pop_cmd(update: Update, context: CallbackContext):
+    """Показывает варианты просмотра популярных книг и новинок публикаций"""
+    keyboard = []
+    keyboard.append([InlineKeyboardButton("Популярные за всё время", callback_data=f"{SHOW_POPULAR_ALL_TIME}")])
+    keyboard.append([InlineKeyboardButton("Популярные за 30 дней", callback_data=f"{SHOW_POPULAR_30_DAYS}")])
+    keyboard.append([InlineKeyboardButton("Популярные за 7 дней", callback_data=f"{SHOW_POPULAR_7_DAYS}")])
+    keyboard.append([InlineKeyboardButton("Новинки", callback_data=f"{SHOW_NOVELTY}")])
+    # add_close_button(keyboard)
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(f"Посмотреть:", reply_markup=reply_markup)
 
 
 # async def langs_cmd(update: Update, context: CallbackContext):
@@ -219,7 +234,8 @@ async def about_cmd(update: Update, context: CallbackContext):
 
 ⚡ <b>Возможности бота:</b>
 • 🔍 Основной поиск книг по названию, автору, жанру, серии и году
-• 📝 <b>Поиск по аннотациям</b> - полнотекстовый поиск по описаниям книг и биографиям авторов
+• 📝 Поиск по аннотациям книг и авторов
+• 📈 Просмотр новинок и популярных книг
 • 📚 Вывод результатов с группировкой по сериям и авторам
 • 👤 Детальная информация об авторах с фото и биографией
 • 📖 Аннотации к книгам, авторам и отзывы читателей

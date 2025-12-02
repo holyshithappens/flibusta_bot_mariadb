@@ -20,6 +20,7 @@ class CMConst:
         CURRENT_AUTHOR_NAME = 'current_author_name'
         LAST_BOT_MESSAGE_ID = 'last_bot_message_id'
         LAST_SEARCH_QUERY = 'last_search_query'
+        SWITCH_SEARCH = 'switch_search' # переключатель поиска по популярным и новинкам
         # LAST_BOOK_INFO_MESSAGE_ID = 'last_book_info_message_id'  # ключ не используется
 
     # Ключи для поисковых данных
@@ -264,6 +265,12 @@ def get_last_search_query(context: CallbackContext):
 
 def set_last_search_query(context: CallbackContext, query):
     ContextManager.set(context, CMConst.CMC_Proc.LAST_SEARCH_QUERY, query)
+
+def get_switch_search(context: CallbackContext):
+    return ContextManager.get(context, CMConst.CMC_Proc.SWITCH_SEARCH)
+
+def set_switch_search(context: CallbackContext, value):
+    ContextManager.set(context, CMConst.CMC_Proc.SWITCH_SEARCH, value)
 
 # Данные поиска
 def get_pages_of_books(context: CallbackContext):

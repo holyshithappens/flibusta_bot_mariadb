@@ -113,6 +113,17 @@ SETTING_OPTIONS = {
     ]
 }
 
+SHOW_POPULAR_ALL_TIME = 'show_pop_999'
+SHOW_POPULAR_30_DAYS = 'show_pop_30'
+SHOW_POPULAR_7_DAYS = 'show_pop_7'
+SHOW_NOVELTY = 'show_pop_0'
+
+HEADING_POP = {
+    SHOW_POPULAR_ALL_TIME: 'популярных за всё время',
+    SHOW_POPULAR_30_DAYS: 'популярных за 30 дней',
+    SHOW_POPULAR_7_DAYS: 'популярных за 7 дней',
+    SHOW_NOVELTY: 'новинок'
+}
 
 # Путь к файлу с новостями (теперь Python файл)
 BOT_NEWS_FILE_PATH = "./data/bot_news.py"

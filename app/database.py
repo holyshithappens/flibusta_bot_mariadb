@@ -213,7 +213,131 @@ class DatabaseLogs(Database):
                 ON UserLog (UserID, Timestamp);
             """)
 
+            # НОВАЯ ТАБЛИЦА ДЛЯ ДОНАТОВ
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS UserPayment (
+                    PaymentID VARCHAR(100) PRIMARY KEY,
+                    UserID INTEGER NOT NULL,
+                    UserName VARCHAR(100),
+                    Amount DECIMAL(15,2) NOT NULL,
+                    Currency VARCHAR(10) NOT NULL,
+                    PaymentMethod VARCHAR(50),
+                    PaymentDate DATETIME NOT NULL,
+                    PaymentStatus VARCHAR(20) NOT NULL,
+                    ProviderChargeID VARCHAR(100),
+                    TelegramPaymentChargeID VARCHAR(100),
+                    InvoicePayload TEXT,
+                    ProviderPaymentChargeID VARCHAR(100),
+                    OrderInfo TEXT,
+                    ShippingAddress TEXT,
+                    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+                    -- Для возможного возврата
+                    Refundable BOOLEAN DEFAULT TRUE,
+                    RefundedAmount DECIMAL(15,2) DEFAULT 0,
+                    RefundedAt DATETIME,
+                    RefundReason TEXT,
+                    RefundTransactionID VARCHAR(100),
+
+                    -- Дополнительная информация
+                    UserLanguage VARCHAR(10),
+                    UserTimezone VARCHAR(50),
+                    IPAddress VARCHAR(45),
+                    UserAgent TEXT
+                );
+            """)
+
+            # Создаем индексы для быстрого поиска
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS IXUserPayments_UserID 
+                ON UserPayment (UserID);
+            """)
+
             conn.commit()
+
+    def log_payment(self, payment_data: dict):
+        """
+        Логирует информацию о платеже
+
+        Args:
+            payment_data: словарь с данными платежа
+        """
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                INSERT OR REPLACE INTO UserPayment (
+                    PaymentID, UserID, UserName, Amount, Currency, PaymentMethod,
+                    PaymentDate, PaymentStatus, ProviderChargeID, TelegramPaymentChargeID,
+                    InvoicePayload, ProviderPaymentChargeID, OrderInfo, ShippingAddress,
+                    Refundable, UserLanguage, UserTimezone, IPAddress, UserAgent
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                payment_data.get('payment_id'),
+                payment_data.get('user_id'),
+                payment_data.get('user_name'),
+                payment_data.get('amount'),
+                payment_data.get('currency'),
+                payment_data.get('payment_method'),
+                payment_data.get('payment_date'),
+                payment_data.get('payment_status', 'completed'),
+                payment_data.get('provider_charge_id'),
+                payment_data.get('telegram_payment_charge_id'),
+                payment_data.get('invoice_payload'),
+                payment_data.get('provider_payment_charge_id'),
+                payment_data.get('order_info'),
+                payment_data.get('shipping_address'),
+                payment_data.get('refundable', True),
+                payment_data.get('user_language'),
+                payment_data.get('user_timezone'),
+                payment_data.get('ip_address'),
+                payment_data.get('user_agent')
+            ))
+
+            conn.commit()
+
+    def get_payment_stats(self, days: int = 30) -> dict:
+        """Получает статистику по платежам"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            # Общая статистика
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total_payments,
+                    SUM(Amount) as total_amount,
+                    AVG(Amount) as avg_amount,
+                    COUNT(DISTINCT UserID) as unique_donors
+                FROM UserPayment 
+                WHERE PaymentStatus = 'completed'
+                AND PaymentDate >= date('now', ?)
+            """, (f'-{days} days',))
+
+            stats = cursor.fetchone()
+
+            # # Статистика по дням
+            # cursor.execute("""
+            #     SELECT
+            #         date(PaymentDate) as day,
+            #         COUNT(*) as payments_count,
+            #         SUM(Amount) as daily_amount
+            #     FROM UserPayments
+            #     WHERE PaymentStatus = 'completed'
+            #     AND PaymentDate >= date('now', ?)
+            #     GROUP BY date(PaymentDate)
+            #     ORDER BY day DESC
+            # """, (f'-{days} days',))
+            #
+            # daily_stats = cursor.fetchall()
+
+            return {
+                'total_payments': stats[0] or 0,
+                'total_amount': float(stats[1] or 0),
+                'avg_amount': float(stats[2] or 0),
+                'unique_donors': stats[3] or 0
+                # 'daily_stats': daily_stats
+            }
 
     def write_user_log(self, timestamp, user_id, user_name, action, detail = ''):
         with self.connect() as conn:
@@ -663,6 +787,7 @@ class DatabaseBooks():
     _class_cached_langs = None
     _class_cached_parent_genres = None
     _class_cached_genres = {}  # Словарь для кеширования жанров по родительским категориям
+    _class_stats = {}  # Статистика по библиотеке
 
     def __init__(self, db_config):
         self.db_config = db_config
@@ -678,48 +803,56 @@ class DatabaseBooks():
             conn.close()
 
 
+    @property
+    def lib_last_update(self):
+        return self.get_library_stats().get('last_update')
+
     def get_library_stats(self):
         """Возвращает статистику библиотеки"""
         try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
+            if not self._class_stats:
+                with self.connect() as conn:
+                    cursor = conn.cursor()
 
-                # Статистика книг
-                cursor.execute("""
-                    SELECT 
-                        MAX(date(time)) as max_update_date,
-                        COUNT(*) as books_cnt,
-                        MAX(bookid) as max_filename
-                    FROM libbook b
-                    where b.Deleted = '0'
-                """)
-                books_stats = cursor.fetchone()
+                    # Статистика книг
+                    cursor.execute("""
+                        SELECT 
+                            MAX(date(time)) as max_update_date,
+                            COUNT(*) as books_cnt,
+                            MAX(bookid) as max_filename
+                        FROM libbook b
+                        where b.Deleted = '0'
+                    """)
+                    books_stats = cursor.fetchone()
 
-                # Количество авторов
-                cursor.execute("SELECT COUNT(*) FROM libavtorname")
-                authors_cnt = cursor.fetchone()[0]
+                    # Количество авторов
+                    cursor.execute("SELECT COUNT(*) FROM libavtorname")
+                    authors_cnt = cursor.fetchone()[0]
 
-                # Количество жанров
-                cursor.execute("SELECT COUNT(*) FROM libgenrelist")
-                genres_cnt = cursor.fetchone()[0]
+                    # Количество жанров
+                    cursor.execute("SELECT COUNT(*) FROM libgenrelist")
+                    genres_cnt = cursor.fetchone()[0]
 
-                # Количество серий
-                cursor.execute("SELECT COUNT(*) FROM libseqname")
-                series_cnt = cursor.fetchone()[0]
+                    # Количество серий
+                    cursor.execute("SELECT COUNT(*) FROM libseqname")
+                    series_cnt = cursor.fetchone()[0]
 
-                # Количество языков
-                cursor.execute("SELECT COUNT(DISTINCT Lang) FROM libbook WHERE Deleted = '0'")
-                langs_cnt = cursor.fetchone()[0]
+                    # Количество языков
+                    cursor.execute("SELECT COUNT(DISTINCT Lang) FROM libbook WHERE Deleted = '0'")
+                    langs_cnt = cursor.fetchone()[0]
 
-                return {
-                    'last_update': books_stats[0],
-                    'books_count': books_stats[1],
-                    'max_filename': books_stats[2],
-                    'authors_count': authors_cnt,
-                    'genres_count': genres_cnt,
-                    'series_count': series_cnt,
-                    'languages_count': langs_cnt
-                }
+                    self._class_stats = {
+                        'last_update': books_stats[0],
+                        'books_count': books_stats[1],
+                        'max_filename': books_stats[2],
+                        'authors_count': authors_cnt,
+                        'genres_count': genres_cnt,
+                        'series_count': series_cnt,
+                        'languages_count': langs_cnt
+                    }
+
+            return self._class_stats
+
         except Exception as e:
             print(f"Error getting library stats: {e}")
             return {
@@ -767,8 +900,7 @@ class DatabaseBooks():
         """Ищем книги по запросу пользователя"""
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter, series_id, author_id)
         # Строим запросы для поиска книг и подсчёта количества найденных книг
-        # sql_query, sql_query_cnt = self.build_sql_queries_ft(sql_where, sort_order, search_area)
-        sql_query = self.build_sql_queries_ft(sql_where, 'desc', search_area)
+        sql_query = self.build_sql_query_books(sql_where, 'desc', search_area)
 
         params = []
         # Пара одинаковых параметров в виде полного запроса для FullText поиска
@@ -780,13 +912,9 @@ class DatabaseBooks():
 
         # выполняем запросы поиска книг и подсчёта количества найденных книг
         with self.connect() as conn:
-            # conn.create_function("REMOVE_PUNCTUATION", 1, remove_punctuation)
             cursor = conn.cursor(buffered=True)
             cursor.execute(sql_query, params)
             books = [Book(*row) for row in cursor.fetchall()]
-            # cursor.execute(sql_query_cnt, params)
-            # count = cursor.fetchone()[0]
-            # count = len(books)
 
         return books
 
@@ -820,12 +948,10 @@ class DatabaseBooks():
                 GROUP BY b.Title, b.Year, sn.SeqName, bp.File, b.FileSize, b.Pages, b.Lang
             """, (book_id,))
             result = cursor.fetchone()
-            # cover_url = f"{FLIBUSTA_BASE_URL}/ib/{result[5]}" if result[5] else None
             cover_url = FlibustaClient.get_cover_url_direct(result[5]) if result[5] else None
             # print(f"DEBUG: cover_url = {cover_url}")
             # Получение ссылки на обложку со страницы книги, если нет в БД
             if cover_url is None:
-                # cover_url = await get_cover_url(book_id)
                 cover_url = await flibusta_client.get_book_cover_url(book_id)
                 # print(f"DEBUG: cover_url = {cover_url}")
 
@@ -870,15 +996,16 @@ class DatabaseBooks():
             SeriesTitle, 
             SeriesID,
             COUNT(DISTINCT FileName) as book_count
-        FROM ({sql_query_nested} {sql_where}
+        FROM ({sql_query_nested} 
           ORDER BY relevance DESC) as subquery
-        WHERE SeriesTitle IS NOT NULL
+        {sql_where}
+          and SeriesTitle IS NOT NULL
         GROUP BY SeriesTitle, SeriesID 
         ORDER BY book_count DESC, SeriesTitle
         LIMIT {MAX_SERIES_SEARCH}
         """
 
-    def search_series(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B, sort_order=None, series_id=0, author_id=0):
+    def search_series(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B, series_id=0, author_id=0):
         """Ищет серии по запросу"""
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
 
@@ -887,7 +1014,6 @@ class DatabaseBooks():
         params.extend([query] * 2)
 
         # запрос для поиска серий
-
         sql_query_nested = SELECT_SQL_QUERY.get(search_area)
         sql_query = self.build_sql_query_series(sql_query_nested, sql_where)
 
@@ -944,7 +1070,6 @@ class DatabaseBooks():
             # Получаем фото автора
             cursor.execute("SELECT File FROM libapics WHERE AvtorID = %s", (author_id,))
             photo_result = cursor.fetchone()
-            # photo_url = f"{FLIBUSTA_BASE_URL}/ia/{photo_result[0]}" if photo_result else None
             photo_url = FlibustaClient.get_author_photo_url(photo_result[0]) if photo_result else None
 
             # Получаем аннотацию автора
@@ -980,14 +1105,15 @@ class DatabaseBooks():
             CONCAT(COALESCE(LastName, ''), ' ', COALESCE(FirstName, ''), ' ', COALESCE(MiddleName, '')) as AuthorName,
             COUNT(DISTINCT FileName) as book_count,
             AuthorID
-        FROM ({sql_query_nested} {sql_where}) as subquery
-        WHERE LastName <> '' OR FirstName <> '' OR MiddleName <> ''
+        FROM ({sql_query_nested} ) as subquery
+        {sql_where}
+          and LastName <> '' OR FirstName <> '' OR MiddleName <> ''
         GROUP BY AuthorName, AuthorID
         ORDER BY book_count DESC, AuthorName
         LIMIT {MAX_AUTHORS_SEARCH}
         """
 
-    def search_authors(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B, sort_order=None, series_id=0, author_id=0):
+    def search_authors(self, query, lang, size_limit, rating_filter=None, search_area=SETTING_SEARCH_AREA_B, series_id=0, author_id=0):
         """Ищет авторов по запросу"""
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
 
@@ -1006,43 +1132,120 @@ class DatabaseBooks():
 
         return authors
 
-    def search_pop_books(self, filter_recent:int, current_date:str, days_back:int, lang, size_limit, rating_filter=None):
+    def search_pop_books(self, lang, size_limit, rating_filter=None, days_back:int=0):
         """Поиск популярных книг за период"""
-        assert lang.isalpha() and len(lang) <= 3, "Invalid lang"
+        # assert lang.isalpha() and len(lang) <= 3, "Invalid lang"
 
         sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
+        if days_back == 0:
+            # Поиск новинок
+            sql_query_nested = DatabaseBooks.build_sql_query_nov(self)
+        else:
+            # Поиск популярных
+            filter_recent = 1 if days_back < 999 else 0
+            current_date = self.lib_last_update
+            sql_query_nested = DatabaseBooks.build_sql_query_pop(self, filter_recent, current_date, days_back)
 
-        sql_query_nested = DatabaseBooks.build_sql_query_pop(self, filter_recent, current_date, days_back)
+        select_fields = ', '.join(Book._fields)
 
         sql_query = f"""
-    SELECT {BASE_FIELDS},
-        b.relevance 
-    FROM ( {sql_query_nested} {sql_where} ) b
-    {BASE_JOINS}
-    ORDER BY b.relevance DESC, b.relevance_oppos DESC;
+        SELECT {select_fields} FROM (
+        SELECT {BASE_FIELDS}
+            , b.relevance
+            , ROW_NUMBER() OVER (PARTITION BY b.BookId ORDER BY b.BookId) AS rn 
+        FROM ( {sql_query_nested} ) b
+        {BASE_JOINS} ) subq
+        {sql_where} 
+        and rn = 1
+        ORDER BY relevance DESC
+        LIMIT {MAX_BOOKS_SEARCH};
         """
+
+        # print(f"DEBUG: {sql_query}")
 
         with self.connect() as conn:
             cursor = conn.cursor(buffered=True)
             cursor.execute(sql_query)
-            books = cursor.fetchall()
+            books = [Book(*row) for row in cursor.fetchall()]
 
         return books
+
+
+    def search_pop_series(self, lang, size_limit, rating_filter=None, days_back:int=0):
+        """Поиск популярных книг по сериям за период"""
+        # assert lang.isalpha() and len(lang) <= 3, "Invalid lang"
+
+        sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
+        if days_back == 0:
+            # Поиск новинок
+            sql_query_nested = DatabaseBooks.build_sql_query_nov(self)
+        else:
+            # Поиск популярных
+            filter_recent = 1 if days_back < 999 else 0
+            current_date = self.lib_last_update
+            sql_query_nested = DatabaseBooks.build_sql_query_pop(self, filter_recent, current_date, days_back)
+
+        sql_query_nested2 = f"""
+        SELECT {BASE_FIELDS}
+            , b.relevance
+        FROM ( {sql_query_nested} ) b
+        {BASE_JOINS} 
+        """
+
+        sql_query = self.build_sql_query_series(sql_query_nested2, sql_where)
+
+        with self.connect() as conn:
+            cursor = conn.cursor(buffered=True)
+            cursor.execute(sql_query)
+            series = cursor.fetchall()
+
+        return series
+
+
+    def search_pop_authors(self, lang, size_limit, rating_filter=None, days_back:int=0):
+        """Поиск популярных книг по авторам за период"""
+        # assert lang.isalpha() and len(lang) <= 3, "Invalid lang"
+
+        sql_where = self.build_sql_where_ft(lang, size_limit, rating_filter)
+        if days_back == 0:
+            # Поиск новинок
+            sql_query_nested = DatabaseBooks.build_sql_query_nov(self)
+        else:
+            # Поиск популярных
+            filter_recent = 1 if days_back < 999 else 0
+            current_date = self.lib_last_update
+            sql_query_nested = DatabaseBooks.build_sql_query_pop(self, filter_recent, current_date, days_back)
+
+        sql_query_nested2 = f"""
+        SELECT {BASE_FIELDS}
+            , b.relevance
+        FROM ( {sql_query_nested} ) b
+        {BASE_JOINS}
+        """
+
+        sql_query = self.build_sql_query_authors(sql_query_nested2, sql_where)
+
+        with self.connect() as conn:
+            cursor = conn.cursor(buffered=True)
+            cursor.execute(sql_query)
+            authors = cursor.fetchall()
+
+        return authors
 
 
     @staticmethod
     def build_sql_query_pop(self, filter_recent:int, current_date:str, days_back:int):
         """Поиск популярных книг за период"""
-        assert filter_recent in (0, 1), "filter_recent must be 0 or 1"
-        assert 1 <= days_back <= 365, "days_back out of range"
+        # assert filter_recent in (0, 1), "filter_recent must be 0 or 1"
+        # assert 1 <= days_back <= 999, "days_back out of range"
 
         return f"""
     SELECT 
-        b.BookID AS FileName,
+        b.BookID,
         b.Lang,
         b.Title,
-        b.FileSize AS BookSize,
-        b.Year AS SearchYear,
+        b.FileSize,
+        b.Year,
         CASE {filter_recent}
             WHEN 0 THEN COALESCE(ra.cnt, 0) + COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0)
             WHEN 1 THEN COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0) 
@@ -1072,6 +1275,10 @@ class DatabaseBooks():
         GROUP BY bookid
     ) rv ON rv.BookId = b.BookId
     WHERE b.Deleted = '0'
+      and (CASE {filter_recent}
+            WHEN 0 THEN COALESCE(ra.cnt, 0) + COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0)
+            WHEN 1 THEN COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0)
+        END) > 0
     ORDER BY 
         CASE {filter_recent}
             WHEN 0 THEN COALESCE(ra.cnt, 0) + COALESCE(re.cnt, 0) + COALESCE(rv.cnt, 0)
@@ -1086,13 +1293,33 @@ class DatabaseBooks():
 
 
     @staticmethod
+    def build_sql_query_nov(self):
+        """Поиск новинок"""
+
+        return f"""
+    SELECT 
+        b.BookID,
+        b.Lang,
+        b.Title,
+        b.FileSize,
+        b.Year,
+        b.BookID AS relevance,
+        0 AS relevance_oppos
+    FROM libbook b
+    WHERE b.Deleted = '0'
+    ORDER BY b.BookID desc 
+    LIMIT {MAX_BOOKS_SEARCH}
+        """
+
+
+    @staticmethod
     def build_sql_where_ft(lang, size_limit, rating_filter=None, series_id=0, author_id=0):
         """Создает SQL-условие WHERE на основе списка слов и их операторов."""
         conditions = []
 
         # Добавляем условие по языку, если задан в настройках пользователя
         if lang:
-            conditions.append(f"SearchLang LIKE '{lang.upper()}'")
+            conditions.append(f"SearchLang = '{lang.upper()}'")
 
         # Добавляем ограничение по размеру книг, если задан в настройках пользователя
         if size_limit:
@@ -1112,12 +1339,12 @@ class DatabaseBooks():
             conditions.append(f"AuthorID = {author_id}")
 
         # в соновном sql вконце уже есть where, поэтому заменяем его на and
-        sql_where = "WHERE " + " AND ".join(conditions) if conditions else ""
+        sql_where = "WHERE " + " AND ".join(conditions) if conditions else "WHERE 1=1"
         return sql_where #, params
 
 
     @staticmethod
-    def build_sql_queries_ft(sql_where, sort_order='desc', search_area=SETTING_SEARCH_AREA_B):
+    def build_sql_query_books(sql_where, sort_order='desc', search_area=SETTING_SEARCH_AREA_B):
         fields = Book._fields
 
         # Всегда используем sum для Relevance
@@ -1130,13 +1357,6 @@ class DatabaseBooks():
 
         sql_query_nested = SELECT_SQL_QUERY.get(search_area)
         from_clause = f"FROM ( {sql_query_nested} {sql_where} ) as subquery"
-
-        # if search_area == SETTING_SEARCH_AREA_BA:
-        #     # Основной запрос поиска по аннотации книг
-        #     from_clause = f"FROM ( {SQL_QUERY_ABOOKS} {sql_where} ) as subquery"
-        # else:
-        #     # Основной запрос поиска по основной информации книг
-        #     from_clause = f"FROM ( {SQL_QUERY_BOOKS} {sql_where} ) as subquery"
 
         sql_query = f"""
             select {select_fields} from (
@@ -1152,12 +1372,7 @@ class DatabaseBooks():
             -- LIMIT {MAX_BOOKS_SEARCH}
         """
 
-        # """ f"SELECT COUNT(*) FROM(SELECT {select_fields} {from_clause} GROUP BY {fields[0]}) as subquery2" """
-        # sql_query_cnt = f"""
-        #     SELECT COUNT(*) FROM ({sql_query}) as subquery2
-        # """
-
-        return sql_query #, sql_query_cnt
+        return sql_query
 
 DB_BOOKS = DatabaseBooks({
     'host': os.getenv('DB_HOST'),
@@ -1167,3 +1382,5 @@ DB_BOOKS = DatabaseBooks({
     'password': os.getenv('DB_PASSWORD'),
     'charset': os.getenv('DB_CHARSET', 'utf8mb4')
 })
+
+DB_LOGS = DatabaseLogs()
