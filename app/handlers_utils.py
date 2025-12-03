@@ -34,24 +34,18 @@ async def process_book_download(query, book_id, book_format, for_user=None):
             disable_notification=True
         )
 
-        # url = f"{FLIBUSTA_BASE_URL}/b/{book_id}/{book_format}"
-        # book_data, original_filename = await download_book_with_filename(url)
-
         # Первая попытка — без авторизации
         book_data, original_filename = await flibusta_client.download_book(book_id, book_format, auth=False)
         public_filename = original_filename if original_filename else f"{book_id}.{book_format}"
 
         # Если не удалось — вторая попытка с авторизацией
         if not book_data:
-            # new_msg = "⏰ <i>Требуется больше времени на скачивание" + (f" для {for_user.first_name}" if for_user else "") + "...</i>"
-            # await processing_msg.edit_text(new_msg, parse_mode=ParseMode.HTML)
             book_data, original_filename = await flibusta_client.download_book(book_id, book_format, auth=True)
             public_filename = original_filename if original_filename else f"{book_id}.{book_format}"
 
         if book_data:
             # Сообщение об истечении срока аренды vps
             message = get_short_donation_notice()
-            # await query.message.reply_text(message, parse_mode='Markdown')
 
             await query.message.reply_document(
                 document=book_data,
@@ -63,7 +57,6 @@ async def process_book_download(query, book_id, book_format, for_user=None):
         else:
             await query.message.reply_text(
                 "😞 Не удалось скачать книгу в этом формате" + (f" для {for_user.first_name}" if for_user else ""),
-                # + f" ({book_url})",
                 disable_notification=True
             )
 

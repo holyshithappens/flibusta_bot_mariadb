@@ -118,32 +118,12 @@ class FlibustaClient:
             self._auth_session = None
         self._is_logged_in = False
 
-    # async def is_book_available(self, book_url, auth=False):
-    #     session = await self._get_session(auth)
-    #     try:
-    #         async with session.get(book_url) as response:
-    #             if response.status != 200:
-    #                 return False
-    #
-    #             html = await response.text()
-    #             if 'Страница не найдена' in html:
-    #                 return False
-    #             # if '/download' in html or ' (fb2) | Флибуста' in html:
-    #             #     return True
-    #             return True
-    #     except Exception:
-    #         return False
-
     async def download_book(self, book_id, book_format, auth=False):
         session = await self._get_session(auth)
         book_url = self.get_book_url(book_id)
         download_url = self.get_download_url(book_id, book_format)
 
         try:
-            # # Если книга недоступна для скачивания, выходим
-            # if not await self.is_book_available(book_url,auth):
-            #     return None,None
-
             # Скачиваем книгу
             async with session.get(download_url) as response:
                 if response.status != 200:

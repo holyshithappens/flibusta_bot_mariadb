@@ -93,9 +93,6 @@ async def handle_book_details(query, context, action, params):
         )
 
         # Добавляем кнопку закрытия с ID сообщения
-        # keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")]]
-        # reply_markup = InlineKeyboardMarkup(keyboard)
-        # await info_message.edit_reply_markup(reply_markup)
         await add_close_button_to_message(info_message,[info_message.message_id])
 
     except Exception as e:
@@ -128,9 +125,6 @@ async def handle_author_info(query: CallbackQuery, context: CallbackContext, act
         message_ids.append(bio_message.message_id)
 
         # Кнопка закрытия с передачей всех message_id
-        # close_data = f"close_info:{':'.join(map(str, message_ids))}"
-        # keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=close_data)]]
-        # await bio_message.edit_reply_markup(InlineKeyboardMarkup(keyboard))
         await add_close_button_to_message(bio_message,message_ids)
 
     except Exception as e:
@@ -161,9 +155,6 @@ async def handle_book_reviews(query, context, action, params):
             )
 
         # Добавляем кнопку закрытия с ID сообщения
-        # keyboard = [[InlineKeyboardButton("❌ Закрыть", callback_data=f"close_info:{info_message.message_id}")]]
-        # reply_markup = InlineKeyboardMarkup(keyboard)
-        # await info_message.edit_reply_markup(reply_markup)
         await add_close_button_to_message(info_message,[info_message.message_id])
 
     except Exception as e:

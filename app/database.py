@@ -7,7 +7,6 @@ import mysql.connector
 from contextlib import contextmanager
 
 from flibusta_client import FlibustaClient, flibusta_client
-# from constants import SETTING_SORT_ORDER_DESC
 from constants import FLIBUSTA_DB_SETTINGS_PATH, FLIBUSTA_DB_LOGS_PATH, MAX_BOOKS_SEARCH, \
     SETTING_SEARCH_AREA_B, SETTING_SEARCH_AREA_BA, SETTING_SEARCH_AREA_AA, MAX_SERIES_SEARCH, MAX_AUTHORS_SEARCH
 
@@ -190,71 +189,71 @@ class DatabaseLogs(Database):
     def __init__(self, db_path = FLIBUSTA_DB_LOGS_PATH):
         super().__init__(db_path)
 
-    def _initialize_database(self):
-        """Инициализирует БД логов при первом подключении"""
-        with self.connect() as conn:
-            cursor = conn.cursor()
-
-            # Создаем таблицу если не существует
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS UserLog (
-                    Timestamp VARCHAR(27) NOT NULL,
-                    UserID INTEGER NOT NULL,
-                    UserName VARCHAR(50),
-                    Action VARCHAR(50) COLLATE NOCASE,
-                    Detail VARCHAR(255) COLLATE NOCASE,
-                    PRIMARY KEY(Timestamp, UserID)
-                );
-            """)
-
-            # Создаем индекс если не существует
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS IXUserLog_UserID_Timestamp 
-                ON UserLog (UserID, Timestamp);
-            """)
-
-            # НОВАЯ ТАБЛИЦА ДЛЯ ДОНАТОВ
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS UserPayment (
-                    PaymentID VARCHAR(100) PRIMARY KEY,
-                    UserID INTEGER NOT NULL,
-                    UserName VARCHAR(100),
-                    Amount DECIMAL(15,2) NOT NULL,
-                    Currency VARCHAR(10) NOT NULL,
-                    PaymentMethod VARCHAR(50),
-                    PaymentDate DATETIME NOT NULL,
-                    PaymentStatus VARCHAR(20) NOT NULL,
-                    ProviderChargeID VARCHAR(100),
-                    TelegramPaymentChargeID VARCHAR(100),
-                    InvoicePayload TEXT,
-                    ProviderPaymentChargeID VARCHAR(100),
-                    OrderInfo TEXT,
-                    ShippingAddress TEXT,
-                    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-
-                    -- Для возможного возврата
-                    Refundable BOOLEAN DEFAULT TRUE,
-                    RefundedAmount DECIMAL(15,2) DEFAULT 0,
-                    RefundedAt DATETIME,
-                    RefundReason TEXT,
-                    RefundTransactionID VARCHAR(100),
-
-                    -- Дополнительная информация
-                    UserLanguage VARCHAR(10),
-                    UserTimezone VARCHAR(50),
-                    IPAddress VARCHAR(45),
-                    UserAgent TEXT
-                );
-            """)
-
-            # Создаем индексы для быстрого поиска
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS IXUserPayments_UserID 
-                ON UserPayment (UserID);
-            """)
-
-            conn.commit()
+    # def _initialize_database(self):
+    #     """Инициализирует БД логов при первом подключении"""
+    #     with self.connect() as conn:
+    #         cursor = conn.cursor()
+    #
+    #         # Создаем таблицу если не существует
+    #         cursor.execute("""
+    #             CREATE TABLE IF NOT EXISTS UserLog (
+    #                 Timestamp VARCHAR(27) NOT NULL,
+    #                 UserID INTEGER NOT NULL,
+    #                 UserName VARCHAR(50),
+    #                 Action VARCHAR(50) COLLATE NOCASE,
+    #                 Detail VARCHAR(255) COLLATE NOCASE,
+    #                 PRIMARY KEY(Timestamp, UserID)
+    #             );
+    #         """)
+    #
+    #         # Создаем индекс если не существует
+    #         cursor.execute("""
+    #             CREATE INDEX IF NOT EXISTS IXUserLog_UserID_Timestamp
+    #             ON UserLog (UserID, Timestamp);
+    #         """)
+    #
+    #         # НОВАЯ ТАБЛИЦА ДЛЯ ДОНАТОВ
+    #         cursor.execute("""
+    #             CREATE TABLE IF NOT EXISTS UserPayment (
+    #                 PaymentID VARCHAR(100) PRIMARY KEY,
+    #                 UserID INTEGER NOT NULL,
+    #                 UserName VARCHAR(100),
+    #                 Amount DECIMAL(15,2) NOT NULL,
+    #                 Currency VARCHAR(10) NOT NULL,
+    #                 PaymentMethod VARCHAR(50),
+    #                 PaymentDate DATETIME NOT NULL,
+    #                 PaymentStatus VARCHAR(20) NOT NULL,
+    #                 ProviderChargeID VARCHAR(100),
+    #                 TelegramPaymentChargeID VARCHAR(100),
+    #                 InvoicePayload TEXT,
+    #                 ProviderPaymentChargeID VARCHAR(100),
+    #                 OrderInfo TEXT,
+    #                 ShippingAddress TEXT,
+    #                 CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    #                 UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    #
+    #                 -- Для возможного возврата
+    #                 Refundable BOOLEAN DEFAULT TRUE,
+    #                 RefundedAmount DECIMAL(15,2) DEFAULT 0,
+    #                 RefundedAt DATETIME,
+    #                 RefundReason TEXT,
+    #                 RefundTransactionID VARCHAR(100),
+    #
+    #                 -- Дополнительная информация
+    #                 UserLanguage VARCHAR(10),
+    #                 UserTimezone VARCHAR(50),
+    #                 IPAddress VARCHAR(45),
+    #                 UserAgent TEXT
+    #             );
+    #         """)
+    #
+    #         # Создаем индексы для быстрого поиска
+    #         cursor.execute("""
+    #             CREATE INDEX IF NOT EXISTS IXUserPayments_UserID
+    #             ON UserPayment (UserID);
+    #         """)
+    #
+    #         conn.commit()
 
     def log_payment(self, payment_data: dict):
         """
@@ -315,21 +314,6 @@ class DatabaseLogs(Database):
             """, (f'-{days} days',))
 
             stats = cursor.fetchone()
-
-            # # Статистика по дням
-            # cursor.execute("""
-            #     SELECT
-            #         date(PaymentDate) as day,
-            #         COUNT(*) as payments_count,
-            #         SUM(Amount) as daily_amount
-            #     FROM UserPayments
-            #     WHERE PaymentStatus = 'completed'
-            #     AND PaymentDate >= date('now', ?)
-            #     GROUP BY date(PaymentDate)
-            #     ORDER BY day DESC
-            # """, (f'-{days} days',))
-            #
-            # daily_stats = cursor.fetchall()
 
             return {
                 'total_payments': stats[0] or 0,
@@ -680,11 +664,8 @@ class DatabaseLogs(Database):
             return None
 
 
-# Класс для работы с БД настроек бота
+# Класс для работы с БД пользовательских настроек бота
 class DatabaseSettings(Database):
-    # UserSettingsType = namedtuple('UserSettingsType',
-    #                           ['User_ID', 'MaxBooks', 'Lang', 'DateSortOrder', 'BookFormat', 'LastNewsDate',
-    #                            'IsBlocked', 'BookSize', 'SearchType', 'Rating', 'SearchArea'])
 
     def __init__(self, db_path = FLIBUSTA_DB_SETTINGS_PATH):
         super().__init__(db_path)

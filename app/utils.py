@@ -87,29 +87,6 @@ def get_platform_recommendations() -> str:
 
 # ===== СЛУЖЕБНЫЕ ФУНКЦИИ =====
 
-# async def download_book_with_filename(url: str):
-#     """Скачивает книгу и возвращает данные + оригинальное имя файла"""
-#     try:
-#         async with aiohttp.ClientSession() as session:
-#             async with session.get(url) as response:
-#                 if response.status == 200:
-#                     book_data = await response.read()
-#                     filename = None
-#
-#                     content_disposition = response.headers.get('Content-Disposition', '')
-#                     if content_disposition:
-#                         filename_match = re.search(r'filename[^;=\n]*=([\'"]?)([^\'"\n]+)\1', content_disposition,
-#                                                    re.IGNORECASE)
-#                         if filename_match:
-#                             filename = unquote(filename_match.group(2))
-#
-#                     return book_data, filename
-#                 return None, None
-#     except Exception as e:
-#         print(f"Ошибка скачивания книги: {e}")
-#         return None, None
-
-
 async def upload_to_tmpfiles(file, file_name: str) -> str:
     """Загружает файл на tmpfiles.org и возвращает URL для скачивания"""
     try:
@@ -322,27 +299,3 @@ def get_short_donation_notice():
         " Все средства пойдут на оплату аренды VPS. Даже небольшой вклад поможет сохранить бота."
 
 
-# async def get_cover_url(book_id: str):
-#     """Простой поиск обложки через BeautifulSoup"""
-#     try:
-#         url = f"{FLIBUSTA_BASE_URL}/b/{book_id}"
-#         async with aiohttp.ClientSession() as session:
-#             async with session.get(url) as response:
-#                 if response.status == 200:
-#                     html_resp = await response.text()
-#                     # print(f"DEBUG: html_resp = {html_resp}")
-#                     soup = BeautifulSoup(html_resp, 'html.parser')
-#                     # Ищем обложку по title или alt
-#                     cover_img = soup.find('img', {'title': 'Cover image'})
-#                     if not cover_img:
-#                         cover_img = soup.find('img', {'alt': 'Cover image'})
-#
-#                     if cover_img and cover_img.get('src'):
-#                         cover_url = cover_img['src']
-#                         if not cover_url.startswith('http'):
-#                             cover_url = f"{FLIBUSTA_BASE_URL}{cover_url}"
-#                         return cover_url
-#         return None
-#     except Exception as e:
-#         print(f"Ошибка получения обложки: {e}")
-#         return None

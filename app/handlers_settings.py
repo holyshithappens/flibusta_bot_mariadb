@@ -200,8 +200,6 @@ async def handle_set_search_area(query, context, action, params):
 
 def create_settings_menu(context:CallbackContext):
     """Создает главное меню настроек"""
-    # settings = [(text, setting_type) for setting_type, text in SETTING_TITLES.items()]
-    # keyboard = [[InlineKeyboardButton(text, callback_data=f"set_{key}")] for text, key in settings]
     keyboard = []
 
     for setting_type, text in SETTING_TITLES.items():

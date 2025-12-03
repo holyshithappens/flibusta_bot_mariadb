@@ -2,7 +2,6 @@ from telegram.ext import CallbackContext
 
 from datetime import datetime
 
-# from constants import SEARCH_TYPE_BOOKS, SEARCH_TYPE_SERIES, SEARCH_TYPE_AUTHORS
 from database import UserSettingsType
 
 
@@ -21,17 +20,13 @@ class CMConst:
         LAST_BOT_MESSAGE_ID = 'last_bot_message_id'
         LAST_SEARCH_QUERY = 'last_search_query'
         SWITCH_SEARCH = 'switch_search' # переключатель поиска по популярным и новинкам
-        # LAST_BOOK_INFO_MESSAGE_ID = 'last_book_info_message_id'  # ключ не используется
 
     # Ключи для поисковых данных
     class CMC_SearchData:
-        # BOOKS = 'BOOKS'
         PAGES_OF_BOOKS = 'PAGES_OF_BOOKS'
         FOUND_BOOKS_COUNT = 'FOUND_BOOKS_COUNT'
-        # SERIES = 'SERIES'
         PAGES_OF_SERIES = 'PAGES_OF_SERIES'
         FOUND_SERIES_COUNT = 'FOUND_SERIES_COUNT'
-        # AUTHORS = 'AUTHORS'
         PAGES_OF_AUTHORS = 'PAGES_OF_AUTHORS'
         FOUND_AUTHORS_COUNT = 'FOUND_AUTHORS_COUNT'
 
@@ -305,18 +300,6 @@ def set_authors(context: CallbackContext, pages_of_authors, count):
     # ContextManager.set(context, CMConst.CMC_SearchData.AUTHORS, authors)
     ContextManager.set(context, CMConst.CMC_SearchData.PAGES_OF_AUTHORS, pages_of_authors)
     ContextManager.set(context, CMConst.CMC_SearchData.FOUND_AUTHORS_COUNT, count)
-
-# def set_search_result(context: CallbackContext, pages_of_result, count, search_type: str|None):
-#    """Запись результатов поиска в контекст по их типу"""
-#    if not search_type:
-#        search_type = get_user_params(context).SearchType
-#
-#    if search_type == SEARCH_TYPE_BOOKS:
-#        set_books(context, pages_of_result, count)
-#    elif search_type == SEARCH_TYPE_SERIES:
-#        set_series(context, pages_of_result, count)
-#    elif search_type == SEARCH_TYPE_AUTHORS:
-#        set_authors(context, pages_of_result, count)
 
 
 # Специальные функции для USER_PARAMS

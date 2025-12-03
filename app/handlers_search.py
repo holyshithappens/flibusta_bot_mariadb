@@ -149,7 +149,6 @@ async def process_search_books(context: CallbackContext, books, found_books_coun
     # Проверяем, найдены ли книги
     if books:
         # Извлекаем из контекста или БД настройки пользователя
-        # await processing_msg.delete()
         pages_of_result = [books[i:i + user_params.MaxBooks] for i in range(0, len(books), user_params.MaxBooks)]
         page = 0
 
@@ -182,7 +181,6 @@ async def process_search_books(context: CallbackContext, books, found_books_coun
                 search_area=search_area,
                 show_pop=show_pop
             )
-            # result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
             # Заменяем сообщение об ожидании на результаты
             await processing_msg.edit_text(header_found_text, reply_markup=reply_markup)
 
@@ -192,11 +190,8 @@ async def process_search_books(context: CallbackContext, books, found_books_coun
             set_last_bot_message_id(context, processing_msg.message_id)
             set_last_search_query(context, query_text)
     else:
-        # search_annotation_text = "ВКЛЮЧЕН" if user_params.SearchArea == SETTING_SEARCH_AREA_BA else "ВЫКЛЮЧЕН"
-        # result_message = await message.reply_text(
         await processing_msg.edit_text(
             "😞 Не нашёл подходящих книг. Попробуйте другие критерии поиска.",
-            # f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
             parse_mode=ParseMode.HTML
         )
 
@@ -277,7 +272,6 @@ async def process_search_series(context: CallbackContext, series, found_series_c
     user_params = get_user_params(context)
     search_area = user_params.SearchArea
     if series:
-        # await processing_msg.delete()
         # Извлекаем из контекста или БД настройки пользователя
 
         pages_of_series = [series[i:i + user_params.MaxBooks] for i in range(0, len(series), user_params.MaxBooks)]
@@ -290,7 +284,6 @@ async def process_search_series(context: CallbackContext, series, found_series_c
                 page, user_params.MaxBooks, found_series_count, SEARCH_TYPE_SERIES,
                 search_area=search_area
             )
-            # result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
             await processing_msg.edit_text(header_found_text, reply_markup=reply_markup)
 
             set_series(context, pages_of_series, found_series_count)
@@ -300,10 +293,8 @@ async def process_search_series(context: CallbackContext, series, found_series_c
             set_last_bot_message_id(context, processing_msg.message_id)
             set_last_search_query(context, query_text)
     else:
-        # result_message = await message.reply_text("😞 Не нашёл подходящих книжных серий. Попробуйте другие критерии поиска")
         await processing_msg.edit_text(
             "😞 Не нашёл подходящих книжных серий. Попробуйте другие критерии поиска.",
-            # f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
             parse_mode=ParseMode.HTML
         )
 
@@ -323,6 +314,7 @@ async def handle_search_series_books(query, context, action, params):
         user = query.from_user
         # Ищем книги серии в комбинации с предыдущим запросом
         query_text = get_last_search_query(context)
+
         # Запускаем асинхронный поиск
         asyncio.create_task(
             async_search_books(context, query_text, query.message if query.message else query, user, series_id=series_id)
@@ -427,9 +419,7 @@ async def process_search_authors(context: CallbackContext, authors, found_author
     user_params = get_user_params(context)
     search_area = user_params.SearchArea
     if authors:
-        # await processing_msg.delete()
         # Извлекаем из контекста или БД настройки пользователя
-
         pages_of_authors = [authors[i:i + user_params.MaxBooks] for i in range(0, len(authors), user_params.MaxBooks)]
         page = 0
         keyboard = create_authors_keyboard(page, pages_of_authors)
@@ -440,7 +430,6 @@ async def process_search_authors(context: CallbackContext, authors, found_author
                 page, user_params.MaxBooks, found_authors_count, SEARCH_TYPE_AUTHORS,
                 search_area=search_area
             )
-            # result_message = await message.reply_text(header_found_text, reply_markup=reply_markup)
             await processing_msg.edit_text(header_found_text, reply_markup=reply_markup)
 
             set_authors(context, pages_of_authors, found_authors_count)
@@ -450,10 +439,8 @@ async def process_search_authors(context: CallbackContext, authors, found_author
             set_last_bot_message_id(context, processing_msg.message_id)
             set_last_search_query(context, query_text)
     else:
-        # result_message = await message.reply_text("😞 Не нашёл подходящих авторов. Попробуйте другие критерии поиска")
         await processing_msg.edit_text(
             "😞 Не нашёл подходящих авторов. Попробуйте другие критерии поиска.",
-            # f" Обратите внимание, что в данный момент в настройках <b>{search_annotation_text}</b> поиск по аннотации книг.",
             parse_mode=ParseMode.HTML
         )
 
@@ -551,7 +538,6 @@ async def handle_books_page_change(query, context, action, params):
             series_name = None
             author_name = None
             if search_context == SEARCH_TYPE_SERIES:
-                # series_name = context.user_data.get('current_series_name', None)
                 series_name = get_current_series_name(context)
             elif search_context == SEARCH_TYPE_AUTHORS:
                 author_name = get_current_author_name(context)

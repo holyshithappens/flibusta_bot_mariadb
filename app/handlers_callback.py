@@ -10,7 +10,7 @@ from handlers_group import handle_group_callback
 from handlers_info import handle_close_info, handle_book_reviews, handle_book_info, handle_book_details, \
     handle_author_info, add_close_button_to_message
 from handlers_search import handle_authors_page_change, handle_series_page_change, handle_books_page_change, \
-    handle_search_series_books, handle_search_author_books, handle_message, handle_search_books
+    handle_search_series_books, handle_search_author_books, handle_search_books
 from handlers_settings import create_rating_filter_keyboard, show_settings_menu, handle_set_actions, \
     handle_set_max_books, handle_set_lang_search, handle_set_size_limit, handle_set_book_format, \
     handle_set_search_type, handle_set_rating_filter, handle_set_search_area
@@ -105,7 +105,6 @@ async def handle_private_callback(update, context, action, params):
     # Прямой поиск обработчика в словаре
     if action in action_handlers:
         handler = action_handlers[action]
-        # await handler(query, context, action, params)
         # Запускаем асинхронный обработчик
         asyncio.create_task(
             handler(query, context, action, params)
