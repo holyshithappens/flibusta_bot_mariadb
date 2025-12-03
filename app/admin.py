@@ -442,8 +442,8 @@ async def admin_user_stats(update: Update, context: CallbackContext, from_callba
 
     📊 <b>Общая статистика:</b>
     • Всего платежей: <code>{payment_stats['total_payments']}</code>
-    • Общая сумма: <code>{payment_stats['total_amount']:.2f} USD</code>
-    • Средний чек: <code>{payment_stats['avg_amount']:.2f} USD</code>
+    • Общая сумма: <code>{payment_stats['total_amount']:.2f}</code>
+    • Средний чек: <code>{payment_stats['avg_amount']:.2f}</code>
     • Уникальных доноров: <code>{payment_stats['unique_donors']}</code>
     """
 
